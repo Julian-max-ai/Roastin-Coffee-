@@ -1,5 +1,6 @@
-const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const Partner = require('../models/Partner');
+const GuildConfig = require('../models/GuildConfig');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -16,17 +17,27 @@ module.exports = {
     .addSubcommand(sub => sub
       .setName('remove')
       .setDescription('Remove a partner.')
-      .addStringOption(o => o.setName('name').setDescription('Partner group name').setRequired(true)))
+      .addStringOption(o => o.setName('name').setDescription('Partner name').setRequired(true).setAutocomplete(true)))
     .addSubcommand(sub => sub
       .setName('edit')
       .setDescription('Edit a partner.')
-      .addStringOption(o => o.setName('name').setDescription('Partner group name').setRequired(true))
+      .addStringOption(o => o.setName('name').setDescription('Partner name').setRequired(true).setAutocomplete(true))
       .addStringOption(o => o.setName('roblox').setDescription('New Roblox group link'))
       .addStringOption(o => o.setName('discord').setDescription('New Discord invite link'))
       .addUserOption(o => o.setName('representative').setDescription('New representative')))
     .addSubcommand(sub => sub
       .setName('list')
       .setDescription('List all current partners.')),
+
+  async autocomplete(interaction) {
+    const partners = await Partner.find({ guildId: interaction.guildId });
+    const focused = interaction.options.getFocused().toLowerCase();
+    const choices = partners
+      .filter(p => p.name.toLowerCase().includes(focused))
+      .slice(0, 25)
+      .map(p => ({ name: p.name, value: p.name }));
+    await interaction.respond(choices);
+  },
 
   async execute(interaction) {
     const { guildId } = interaction;
@@ -37,7 +48,7 @@ module.exports = {
       const existing = await Partner.findOne({ guildId, name });
       if (existing) return interaction.reply({ content: `❌ A partner named **${name}** already exists.`, ephemeral: true });
 
-      await Partner.create({
+      const partner = await Partner.create({
         guildId,
         name,
         robloxLink: interaction.options.getString('roblox'),
@@ -45,17 +56,18 @@ module.exports = {
         representativeId: interaction.options.getUser('representative').id,
       });
 
-      const embed = new EmbedBuilder()
-        .setColor(0x57F287)
-        .setTitle('🤝 New Partner Added')
-        .setDescription(`## ${name}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
-        .addFields(
-          { name: '🔗 Roblox Group', value: interaction.options.getString('roblox'), inline: true },
-          { name: '💬 Discord', value: interaction.options.getString('discord'), inline: true },
-          { name: '👤 Representative', value: `<@${interaction.options.getUser('representative').id}>`, inline: true },
-        )
-        .setTimestamp();
-      return interaction.reply({ embeds: [embed] });
+      await interaction.reply({
+        content:
+          `## 🤝 New Partner Added\n` +
+          `-# Roastin Coffee Partnership System\n\n` +
+          `**${name}** has been added as a partner.\n\n` +
+          `> 👤 **Representative:** <@${partner.representativeId}>\n` +
+          `> 🔗 **Roblox:** [Group Link](${partner.robloxLink})\n` +
+          `> 💬 **Discord:** [Join Server](${partner.discordInvite})\n` +
+          `> 📅 **Since:** ${new Date().toLocaleDateString('en-US', { dateStyle: 'long' })}`,
+      });
+
+      await updatePartnerList(interaction.client, guildId);
     }
 
     if (sub === 'remove') {
@@ -63,12 +75,13 @@ module.exports = {
       const deleted = await Partner.findOneAndDelete({ guildId, name });
       if (!deleted) return interaction.reply({ content: `❌ No partner named **${name}** found.`, ephemeral: true });
 
-      const embed = new EmbedBuilder()
-        .setColor(0xED4245)
-        .setTitle('🗑️ Partner Removed')
-        .setDescription(`**${name}** has been removed from the partner list.`)
-        .setTimestamp();
-      return interaction.reply({ embeds: [embed] });
+      await interaction.reply({
+        content:
+          `## 🗑️ Partner Removed\n\n` +
+          `**${name}** has been removed from the partner list.`,
+      });
+
+      await updatePartnerList(interaction.client, guildId);
     }
 
     if (sub === 'edit') {
@@ -81,34 +94,56 @@ module.exports = {
       if (interaction.options.getUser('representative')) partner.representativeId = interaction.options.getUser('representative').id;
       await partner.save();
 
-      const embed = new EmbedBuilder()
-        .setColor(0xFEE75C)
-        .setTitle('✏️ Partner Updated')
-        .setDescription(`**${name}** has been updated.`)
-        .setTimestamp();
-      return interaction.reply({ embeds: [embed] });
+      await interaction.reply({
+        content:
+          `## ✏️ Partner Updated\n\n` +
+          `**${name}** has been updated.\n\n` +
+          `> 👤 **Representative:** <@${partner.representativeId}>\n` +
+          `> 🔗 **Roblox:** [Group Link](${partner.robloxLink})\n` +
+          `> 💬 **Discord:** [Join Server](${partner.discordInvite})`,
+      });
+
+      await updatePartnerList(interaction.client, guildId);
     }
 
     if (sub === 'list') {
       const partners = await Partner.find({ guildId });
       if (!partners.length) return interaction.reply({ content: '📋 No partners found.', ephemeral: true });
 
-      const embed = new EmbedBuilder()
-        .setColor(0x6F4E37)
-        .setTitle('☕ Roastin Coffee — Partner List')
-        .setDescription('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
-        .setTimestamp()
-        .setFooter({ text: `${partners.length} active partner(s)` });
-
+      let list = `## 🤝 Partner List\n-# ${partners.length} active partner(s)\n\n`;
       for (const p of partners) {
-        embed.addFields({
-          name: `🤝 ${p.name}`,
-          value: `> 🔗 [Roblox Group](${p.robloxLink})\n> 💬 [Discord](${p.discordInvite})\n> 👤 <@${p.representativeId}>`,
-          inline: false,
-        });
+        list += `**${p.name}**\n> 👤 <@${p.representativeId}> • 🔗 [Roblox](${p.robloxLink}) • 💬 [Discord](${p.discordInvite})\n\n`;
       }
 
-      return interaction.reply({ embeds: [embed] });
+      return interaction.reply({ content: list, ephemeral: true });
     }
   },
 };
+
+async function updatePartnerList(client, guildId) {
+  const cfg = await GuildConfig.findOne({ guildId });
+  if (!cfg?.partnerListChannel) return;
+
+  const channel = await client.channels.fetch(cfg.partnerListChannel).catch(() => null);
+  if (!channel) return;
+
+  const partners = await Partner.find({ guildId });
+
+  let partnerBlock = '';
+  for (const p of partners) {
+    partnerBlock += `**[${p.name}](${p.discordInvite})**\n> 👤 <@${p.representativeId}> • 🔗 [Roblox Group](${p.robloxLink})\n\n`;
+  }
+  if (!partnerBlock) partnerBlock = '*No active partners yet.*';
+
+  const text = (cfg.partnerListText || '## 🤝 Our Partners\n\n{partners}').replace('{partners}', partnerBlock);
+
+  if (cfg.partnerListMessageId) {
+    const msg = await channel.messages.fetch(cfg.partnerListMessageId).catch(() => null);
+    if (msg) return msg.edit(text);
+  }
+
+  const sent = await channel.send(text);
+  await GuildConfig.findOneAndUpdate({ guildId }, { partnerListMessageId: sent.id });
+}
+
+module.exports.updatePartnerList = updatePartnerList;

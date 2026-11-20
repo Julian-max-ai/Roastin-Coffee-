@@ -11,25 +11,37 @@ module.exports = {
       } catch (err) {
         console.error(err);
         const msg = { content: '❌ An error occurred.', ephemeral: true };
-        interaction.replied || interaction.deferred
-          ? await interaction.followUp(msg)
-          : await interaction.reply(msg);
+        interaction.replied || interaction.deferred ? await interaction.followUp(msg) : await interaction.reply(msg);
       }
       return;
     }
 
+    // Autocomplete
+    if (interaction.isAutocomplete()) {
+      const command = client.commands.get(interaction.commandName);
+      if (command?.autocomplete) await command.autocomplete(interaction).catch(console.error);
+      return;
+    }
+
+    // Config interactions (buttons, selects, modals)
+    const { handleConfigInteraction } = require('../commands/config');
+    const configTriggers = ['cfg_category', 'cfg_ch_pick', 'cfg_reviewMode', 'cfg_text_pick', 'cfg_back', 'cfg_setReviewLink', 'cfg_reviewLink_modal'];
+    const isConfigInteraction =
+      (interaction.isStringSelectMenu() && configTriggers.includes(interaction.customId)) ||
+      (interaction.isChannelSelectMenu() && (interaction.customId.startsWith('cfg_channel:') || interaction.customId === 'cfg_ticketCategory')) ||
+      (interaction.isRoleSelectMenu() && ['cfg_prStaffRoles', 'cfg_partnerRepRoles'].includes(interaction.customId)) ||
+      (interaction.isButton() && ['cfg_back', 'cfg_setReviewLink'].includes(interaction.customId)) ||
+      (interaction.isModalSubmit() && (interaction.customId.startsWith('cfg_text_modal:') || interaction.customId === 'cfg_reviewLink_modal'));
+
+    if (isConfigInteraction) return handleConfigInteraction(interaction);
+
     // Buttons
     if (interaction.isButton()) {
-      const [action] = interaction.customId.split(':');
+      const [action, ...rest] = interaction.customId.split(':');
 
-      if (interaction.customId.startsWith('cfg_') && !interaction.customId.startsWith('cfg_select:')) {
-        const { handleConfigButton } = require('../commands/config');
-        return handleConfigButton(interaction);
-      }
-
-      if (action === 'review_confirm') {
-        const { handleReviewConfirm } = require('../commands/review');
-        return handleReviewConfirm(interaction);
+      if (action === 'review_start') {
+        const { handleReviewStart } = require('../commands/review');
+        return handleReviewStart(interaction);
       }
 
       if (action === 'event_approve' || action === 'event_deny') {
@@ -37,18 +49,16 @@ module.exports = {
         return handleEventDecision(interaction);
       }
 
-      if (action === 'ticket_apply' || action === 'ticket_inquiry') {
+      if (action === 'ticket_open') {
         const { handleTicketOpen } = require('../commands/ticket-panel');
-        return handleTicketOpen(interaction);
+        return handleTicketOpen(interaction, rest[0]);
       }
     }
 
     // Select menus
-    if (interaction.isChannelSelectMenu() || interaction.isRoleSelectMenu()) {
-      if (interaction.customId.startsWith('cfg_select:')) {
-        const { handleConfigSelect } = require('../commands/config');
-        return handleConfigSelect(interaction);
-      }
+    if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_select') {
+      const { handleTicketOpen } = require('../commands/ticket-panel');
+      return handleTicketOpen(interaction, interaction.values[0]);
     }
   },
 };

@@ -1,4 +1,7 @@
-const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const {
+  SlashCommandBuilder, PermissionFlagsBits,
+  ActionRowBuilder, ButtonBuilder, ButtonStyle,
+} = require('discord.js');
 const GuildConfig = require('../models/GuildConfig');
 const Partner = require('../models/Partner');
 
@@ -7,9 +10,7 @@ module.exports = {
     .setName('review')
     .setDescription('Monthly partnership review system.')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-    .addSubcommand(sub => sub
-      .setName('send')
-      .setDescription('Manually send the monthly partnership review.')),
+    .addSubcommand(sub => sub.setName('send').setDescription('Manually send the monthly partnership review.')),
 
   async execute(interaction) {
     await interaction.deferReply({ ephemeral: true });
@@ -19,8 +20,9 @@ module.exports = {
 };
 
 async function sendMonthlyReviews(client, targetGuildId = null) {
-  const query = targetGuildId ? { guildId: targetGuildId } : {};
-  const configs = await GuildConfig.find(targetGuildId ? query : {});
+  const configs = targetGuildId
+    ? await GuildConfig.find({ guildId: targetGuildId })
+    : await GuildConfig.find({ reviewChannel: { $ne: null } });
 
   for (const cfg of configs) {
     if (!cfg.reviewChannel) continue;
@@ -33,48 +35,65 @@ async function sendMonthlyReviews(client, targetGuildId = null) {
     const month = new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
 
     for (const partner of partners) {
-      const embed = new EmbedBuilder()
-        .setColor(0x6F4E37)
-        .setTitle(`📋 Monthly Partnership Review — ${month}`)
-        .setDescription(
-          `## ${partner.name}\n` +
-          `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-          `> This is your monthly activity check-in for the partnership with **${partner.name}**.\n\n` +
-          `**Representative:** <@${partner.representativeId}>\n` +
-          `**Roblox Group:** [Click here](${partner.robloxLink})\n` +
-          `**Discord:** [Join](${partner.discordInvite})\n\n` +
-          `*Please confirm your partnership activity by clicking the button below.*`
-        )
-        .setTimestamp()
-        .setFooter({ text: 'Roastin Coffee PR System' });
+      const text =
+        `## 📋 Monthly Partnership Review — ${month}\n` +
+        `-# Roastin Coffee PR System\n\n` +
+        (cfg.reviewText || 'Please complete your monthly review.') + '\n\n' +
+        `**Partner:** ${partner.name}\n` +
+        `**Representative:** <@${partner.representativeId}>\n\n` +
+        `> 🔗 [Roblox Group](${partner.robloxLink}) • 💬 [Discord](${partner.discordInvite})`;
 
-      const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId(`review_confirm:${partner._id}`)
-          .setLabel('✅ Confirm Activity')
-          .setStyle(ButtonStyle.Success)
-      );
+      const components = [];
 
-      await channel.send({ content: `<@${partner.representativeId}>`, embeds: [embed], components: [row] });
+      if (cfg.reviewMode === 'link' && cfg.reviewLink) {
+        components.push(new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setLabel('📝 Complete Review')
+            .setURL(cfg.reviewLink)
+            .setStyle(ButtonStyle.Link)
+        ));
+      } else {
+        components.push(new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`review_start:${partner._id}`)
+            .setLabel('📝 Start Review')
+            .setStyle(ButtonStyle.Primary)
+        ));
+      }
+
+      await channel.send({ content: `<@${partner.representativeId}>`, components });
+      await channel.send({ content: text, components: [] });
     }
   }
 }
 
-async function handleReviewConfirm(interaction) {
+async function handleReviewStart(interaction) {
   const partnerId = interaction.customId.split(':')[1];
   const partner = await Partner.findById(partnerId).catch(() => null);
+  const cfg = await GuildConfig.findOne({ guildId: interaction.guildId });
 
-  const embed = new EmbedBuilder()
-    .setColor(0x57F287)
-    .setTitle('✅ Activity Confirmed')
-    .setDescription(
-      `**${partner?.name ?? 'Partner'}** activity has been confirmed by <@${interaction.user.id}>.\n\n` +
-      `> *Confirmed on ${new Date().toLocaleDateString('en-US', { dateStyle: 'long' })}*`
-    )
-    .setTimestamp();
+  if (!partner || !cfg) return interaction.reply({ content: '❌ Error finding partner data.', ephemeral: true });
 
-  await interaction.update({ embeds: [embed], components: [] });
+  const questions = cfg.reviewQuestions?.length ? cfg.reviewQuestions : ['How active was your group this month?', 'Any events hosted?', 'Any issues to report?'];
+
+  await interaction.reply({
+    content:
+      `## 📋 Review Started — ${partner.name}\n\n` +
+      `I will send you the review questions via DM.\n` +
+      `-# Check your DMs!`,
+    ephemeral: true,
+  });
+
+  try {
+    const user = await interaction.client.users.fetch(partner.representativeId);
+    let dmText = `## 📋 Monthly Review — ${partner.name}\n-# Roastin Coffee PR System\n\nPlease answer the following questions:\n\n`;
+    questions.forEach((q, i) => { dmText += `**${i + 1}.** ${q}\n`; });
+    dmText += `\n> *Reply to this message with your answers.*`;
+    await user.send(dmText);
+  } catch {
+    await interaction.followUp({ content: '❌ Could not send DM. Please check your DM settings.', ephemeral: true });
+  }
 }
 
 module.exports.sendMonthlyReviews = sendMonthlyReviews;
-module.exports.handleReviewConfirm = handleReviewConfirm;
+module.exports.handleReviewStart = handleReviewStart;

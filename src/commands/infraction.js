@@ -1,10 +1,9 @@
-const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 const GuildConfig = require('../models/GuildConfig');
 const Partner = require('../models/Partner');
 const Infraction = require('../models/Infraction');
 
-const TYPE_COLORS = { warning: 0xFEE75C, strike: 0xFF8C00, termination: 0xED4245 };
-const TYPE_EMOJI  = { warning: '⚠️', strike: '🔴', termination: '🚫' };
+const TYPE_EMOJI = { warning: '⚠️', strike: '🔴', termination: '🚫' };
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -14,22 +13,30 @@ module.exports = {
     .addSubcommand(sub => sub
       .setName('add')
       .setDescription('Issue a warning, strike, or termination.')
-      .addStringOption(o => o.setName('partner').setDescription('Partner name').setRequired(true))
+      .addStringOption(o => o.setName('partner').setDescription('Partner name').setRequired(true).setAutocomplete(true))
       .addStringOption(o => o.setName('type').setDescription('Infraction type').setRequired(true)
         .addChoices(
-          { name: 'Warning', value: 'warning' },
-          { name: 'Strike', value: 'strike' },
-          { name: 'Termination', value: 'termination' },
+          { name: '⚠️ Warning', value: 'warning' },
+          { name: '🔴 Strike', value: 'strike' },
+          { name: '🚫 Termination', value: 'termination' },
         ))
       .addStringOption(o => o.setName('reason').setDescription('Reason').setRequired(true)))
     .addSubcommand(sub => sub
       .setName('list')
       .setDescription('View all active infractions for a partner.')
-      .addStringOption(o => o.setName('partner').setDescription('Partner name').setRequired(true)))
+      .addStringOption(o => o.setName('partner').setDescription('Partner name').setRequired(true).setAutocomplete(true)))
     .addSubcommand(sub => sub
       .setName('remove')
-      .setDescription('Remove an infraction by its ID.')
+      .setDescription('Remove an infraction by ID.')
       .addStringOption(o => o.setName('id').setDescription('Infraction ID').setRequired(true))),
+
+  async autocomplete(interaction) {
+    const partners = await Partner.find({ guildId: interaction.guildId });
+    const focused = interaction.options.getFocused().toLowerCase();
+    await interaction.respond(
+      partners.filter(p => p.name.toLowerCase().includes(focused)).slice(0, 25).map(p => ({ name: p.name, value: p.name }))
+    );
+  },
 
   async execute(interaction) {
     const { guildId } = interaction;
@@ -45,53 +52,39 @@ module.exports = {
       if (!partner) return interaction.reply({ content: `❌ No partner named **${partnerName}** found.`, ephemeral: true });
 
       const infraction = await Infraction.create({
-        guildId,
-        partnerId: partner._id.toString(),
-        type,
-        reason,
-        issuedBy: interaction.user.id,
+        guildId, partnerId: partner._id.toString(), type, reason, issuedBy: interaction.user.id,
       });
 
       const activeStrikes = await Infraction.countDocuments({ guildId, partnerId: partner._id.toString(), type: 'strike', removed: false });
 
-      const embed = new EmbedBuilder()
-        .setColor(TYPE_COLORS[type])
-        .setTitle(`${TYPE_EMOJI[type]} ${type.charAt(0).toUpperCase() + type.slice(1)} Issued`)
-        .setDescription(
-          `## ${partner.name}\n` +
-          `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-          `**Type:** ${TYPE_EMOJI[type]} ${type.charAt(0).toUpperCase() + type.slice(1)}\n` +
-          `**Reason:** ${reason}\n` +
-          `**Issued by:** <@${interaction.user.id}>\n` +
-          `**Date:** ${new Date().toLocaleDateString('en-US', { dateStyle: 'long' })}\n` +
-          `**Infraction ID:** \`${infraction._id}\`\n\n` +
-          (type === 'strike' ? `> ⚡ **Active Strikes:** ${activeStrikes}` : '')
-        )
-        .setTimestamp();
+      const msg =
+        `## ${TYPE_EMOJI[type]} ${type.charAt(0).toUpperCase() + type.slice(1)} Issued\n` +
+        `-# Roastin Coffee Infraction System\n\n` +
+        `**Partner:** ${partner.name}\n` +
+        `**Reason:** ${reason}\n` +
+        `**Issued by:** <@${interaction.user.id}>\n` +
+        `**Date:** ${new Date().toLocaleDateString('en-US', { dateStyle: 'long' })}\n` +
+        `**ID:** \`${infraction._id}\`\n` +
+        (type === 'strike' ? `\n> ⚡ **Active Strikes:** ${activeStrikes}` : '');
 
-      await interaction.reply({ embeds: [embed] });
+      await interaction.reply({ content: msg });
 
-      // Log channel notification
       if (cfg?.logChannel) {
         const logCh = await interaction.client.channels.fetch(cfg.logChannel).catch(() => null);
-        if (logCh) await logCh.send({ embeds: [embed] });
+        if (logCh) await logCh.send(msg);
       }
 
-      // DM the representative
       try {
         const rep = await interaction.client.users.fetch(partner.representativeId);
-        const dmEmbed = new EmbedBuilder()
-          .setColor(TYPE_COLORS[type])
-          .setTitle(`${TYPE_EMOJI[type]} Partnership ${type.charAt(0).toUpperCase() + type.slice(1)} — ${partner.name}`)
-          .setDescription(
-            `You have received a **${type}** regarding the partnership **${partner.name}**.\n\n` +
-            `**Reason:** ${reason}\n` +
-            `**Date:** ${new Date().toLocaleDateString('en-US', { dateStyle: 'long' })}\n\n` +
-            `> *If you have questions, please contact Roastin Coffee PR Staff.*`
-          )
-          .setTimestamp();
-        await rep.send({ embeds: [dmEmbed] });
-      } catch { /* DMs may be closed */ }
+        await rep.send(
+          `## ${TYPE_EMOJI[type]} Partnership ${type.charAt(0).toUpperCase() + type.slice(1)}\n` +
+          `-# Roastin Coffee PR System\n\n` +
+          `You have received a **${type}** for the partnership **${partner.name}**.\n\n` +
+          `**Reason:** ${reason}\n` +
+          `**Date:** ${new Date().toLocaleDateString('en-US', { dateStyle: 'long' })}\n\n` +
+          `> *If you have questions, please contact Roastin Coffee PR Staff.*`
+        );
+      } catch { /* DMs closed */ }
     }
 
     if (sub === 'list') {
@@ -101,43 +94,25 @@ module.exports = {
 
       const infractions = await Infraction.find({ guildId, partnerId: partner._id.toString(), removed: false });
 
-      const embed = new EmbedBuilder()
-        .setColor(0x6F4E37)
-        .setTitle(`📋 Infractions — ${partner.name}`)
-        .setDescription('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
-        .setTimestamp()
-        .setFooter({ text: `${infractions.length} active infraction(s)` });
-
+      let msg = `## 📋 Infractions — ${partner.name}\n-# ${infractions.length} active infraction(s)\n\n`;
       if (!infractions.length) {
-        embed.setDescription('✅ No active infractions.');
+        msg += `✅ No active infractions.`;
       } else {
         for (const inf of infractions) {
-          embed.addFields({
-            name: `${TYPE_EMOJI[inf.type]} ${inf.type.charAt(0).toUpperCase() + inf.type.slice(1)} — ${new Date(inf.issuedAt).toLocaleDateString('en-US')}`,
-            value: `> **Reason:** ${inf.reason}\n> **By:** <@${inf.issuedBy}>\n> **ID:** \`${inf._id}\``,
-          });
+          msg += `${TYPE_EMOJI[inf.type]} **${inf.type.charAt(0).toUpperCase() + inf.type.slice(1)}** — ${new Date(inf.issuedAt).toLocaleDateString('en-US')}\n`;
+          msg += `> **Reason:** ${inf.reason} • **By:** <@${inf.issuedBy}> • **ID:** \`${inf._id}\`\n\n`;
         }
       }
 
-      return interaction.reply({ embeds: [embed], ephemeral: true });
+      return interaction.reply({ content: msg, ephemeral: true });
     }
 
     if (sub === 'remove') {
       const id = interaction.options.getString('id');
-      const infraction = await Infraction.findOneAndUpdate(
-        { _id: id, guildId },
-        { removed: true },
-        { new: true }
-      ).catch(() => null);
-
+      const infraction = await Infraction.findOneAndUpdate({ _id: id, guildId }, { removed: true }).catch(() => null);
       if (!infraction) return interaction.reply({ content: '❌ Infraction not found.', ephemeral: true });
 
-      const embed = new EmbedBuilder()
-        .setColor(0x57F287)
-        .setTitle('✅ Infraction Removed')
-        .setDescription(`Infraction \`${id}\` has been marked as removed.`)
-        .setTimestamp();
-      return interaction.reply({ embeds: [embed] });
+      return interaction.reply({ content: `## ✅ Infraction Removed\n\nInfraction \`${id}\` has been removed.` });
     }
   },
 };
