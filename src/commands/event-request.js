@@ -1,13 +1,17 @@
-const {
-  SlashCommandBuilder,
-  ActionRowBuilder, ButtonBuilder, ButtonStyle,
-} = require('discord.js');
-const GuildConfig = require('../models/GuildConfig');
+'use strict';
+const { SlashCommandBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+const EventRequest = require('../models/EventRequest');
+const GuildConfig  = require('../models/GuildConfig');
+const { eventRequestCard, eventAnnouncementCard, errorCard, successCard, logCard } = require('../ui');
+const { isStaff } = require('../utils/permissions');
+const { EMOJI, EVENT_REQUEST_COOLDOWN_MS } = require('../theme');
+
+const cooldowns = new Map();
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('event-request')
-    .setDescription('Submit an affiliate event or shift announcement for approval.')
+    .setDescription('Submit an affiliate event or shift for staff approval.')
     .addStringOption(o => o.setName('title').setDescription('Event title').setRequired(true))
     .addStringOption(o => o.setName('description').setDescription('Event description').setRequired(true))
     .addStringOption(o => o.setName('date').setDescription('Date & time (e.g. July 20, 2025 at 3PM UTC)').setRequired(true))
@@ -15,73 +19,95 @@ module.exports = {
       .addChoices({ name: 'Event', value: 'Event' }, { name: 'Shift', value: 'Shift' })),
 
   async execute(interaction) {
-    const cfg = await GuildConfig.findOne({ guildId: interaction.guildId });
-    if (!cfg?.announcementChannel) return interaction.reply({ content: '❌ No announcement channel configured.', ephemeral: true });
+    const { guildId } = interaction;
+    const cfg = await GuildConfig.findOne({ guildId });
+    if (!cfg?.announcementChannel) return interaction.reply(errorCard('No announcement channel configured. Ask an admin to run `/config`.'));
 
-    const title = interaction.options.getString('title');
-    const description = interaction.options.getString('description');
-    const date = interaction.options.getString('date');
-    const type = interaction.options.getString('type');
+    // Cooldown
+    const key  = `${guildId}:${interaction.user.id}`;
+    const last = cooldowns.get(key) || 0;
+    if (Date.now() - last < EVENT_REQUEST_COOLDOWN_MS) {
+      const remaining = Math.ceil((EVENT_REQUEST_COOLDOWN_MS - (Date.now() - last)) / 1000);
+      return interaction.reply(errorCard(`Please wait ${remaining}s before submitting another event request.`));
+    }
+    cooldowns.set(key, Date.now());
 
-    const preview =
-      `## 📝 Event Request — Pending Approval\n` +
-      `-# Submitted by <@${interaction.user.id}>\n\n` +
-      `**${type}: ${title}**\n` +
-      `**Date:** ${date}\n\n` +
-      `> ${description}`;
+    const req = await EventRequest.create({
+      guildId,
+      submitterId:  interaction.user.id,
+      title:        interaction.options.getString('title'),
+      description:  interaction.options.getString('description'),
+      date:         interaction.options.getString('date'),
+      type:         interaction.options.getString('type'),
+    });
 
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`event_approve:${interaction.user.id}:${cfg.announcementChannel}:${encodeURIComponent(title)}:${encodeURIComponent(description)}:${encodeURIComponent(date)}:${type}`)
-        .setLabel('✅ Approve')
-        .setStyle(ButtonStyle.Success),
-      new ButtonBuilder()
-        .setCustomId(`event_deny:${interaction.user.id}`)
-        .setLabel('❌ Deny')
-        .setStyle(ButtonStyle.Danger),
-    );
+    const card = eventRequestCard(req, interaction.user.id);
 
-    const targetChannel = cfg.logChannel
-      ? await interaction.client.channels.fetch(cfg.logChannel).catch(() => null)
-      : null;
-
-    if (targetChannel) {
-      await targetChannel.send({ content: preview, components: [row] });
-      return interaction.reply({ content: '✅ Your event request has been submitted for staff review.', ephemeral: true });
+    const targetChannelId = cfg.logChannel || cfg.announcementChannel;
+    const ch = await interaction.client.channels.fetch(targetChannelId).catch(() => null);
+    if (ch) {
+      const msg = await ch.send(card).catch(() => null);
+      if (msg) await EventRequest.findByIdAndUpdate(req._id, { logMessageId: msg.id });
     }
 
-    return interaction.reply({ content: preview, components: [row] });
+    await interaction.reply(successCard('Your event request has been submitted for staff review.'));
   },
 };
 
 async function handleEventDecision(interaction) {
-  const parts = interaction.customId.split(':');
-  const action = parts[0];
+  const [action, reqId] = interaction.customId.split(':');
+  const { guildId, member } = interaction;
+
+  const cfg = await GuildConfig.findOne({ guildId });
+  if (!isStaff(member, cfg)) return interaction.reply(errorCard('You need the PR Staff role to approve or deny event requests.'));
+
+  const req = await EventRequest.findOne({ _id: reqId, guildId }).catch(() => null);
+  if (!req) return interaction.reply(errorCard('Event request not found.'));
+  if (req.status !== 'pending') return interaction.reply(errorCard('This request has already been decided.'));
 
   if (action === 'event_deny') {
-    return interaction.update({
-      content: `## ❌ Event Request Denied\n\nDenied by <@${interaction.user.id}>.`,
-      components: [],
-    });
+    const modal = new ModalBuilder().setCustomId(`event_deny_reason:${reqId}`).setTitle('Deny Event Request');
+    modal.addComponents(new ActionRowBuilder().addComponents(
+      new TextInputBuilder().setCustomId('reason').setLabel('Reason for denial (optional)').setStyle(TextInputStyle.Paragraph).setRequired(false)
+    ));
+    return interaction.showModal(modal);
   }
 
-  const [, submitterId, announcementChannelId, title, description, date, type] = parts;
-  const announceCh = await interaction.client.channels.fetch(announcementChannelId).catch(() => null);
-  if (!announceCh) return interaction.reply({ content: '❌ Announcement channel not found.', ephemeral: true });
+  // Approve
+  await EventRequest.findByIdAndUpdate(reqId, { status: 'approved', decidedBy: interaction.user.id, decidedAt: new Date() });
 
-  const announceText =
-    `## 📣 ${type} Announcement — ${decodeURIComponent(title)}\n` +
-    `-# Roastin Coffee Affiliate Announcement\n\n` +
-    `**Date:** ${decodeURIComponent(date)}\n\n` +
-    `> ${decodeURIComponent(description)}\n\n` +
-    `-# Hosted by <@${submitterId}>`;
+  const announceCh = await interaction.client.channels.fetch(cfg.announcementChannel).catch(() => null);
+  if (announceCh) await announceCh.send(eventAnnouncementCard(req)).catch(() => {});
 
-  await announceCh.send({ content: announceText });
+  const updated = eventAnnouncementCard(req);
+  await interaction.update({ ...updated, components: [] });
 
-  return interaction.update({
-    content: `## ✅ Event Approved & Posted\n\nApproved by <@${interaction.user.id}>. Posted in <#${announcementChannelId}>.`,
-    components: [],
-  });
+  await require('./partner').sendLog(interaction.client, guildId,
+    `${EMOJI.event} Event Approved — ${req.title}`,
+    `Approved by <@${interaction.user.id}>`
+  );
 }
 
-module.exports.handleEventDecision = handleEventDecision;
+async function handleEventDenyModal(interaction) {
+  const reqId  = interaction.customId.replace('event_deny_reason:', '');
+  const reason = interaction.fields.getTextInputValue('reason') || null;
+  const { guildId } = interaction;
+
+  await EventRequest.findByIdAndUpdate(reqId, { status: 'denied', decidedBy: interaction.user.id, decidedAt: new Date(), denyReason: reason });
+
+  const req = await EventRequest.findById(reqId);
+
+  // Try to DM submitter
+  try {
+    const user = await interaction.client.users.fetch(req.submitterId);
+    await user.send(errorCard(
+      `Your event request **${req.title}** was denied by <@${interaction.user.id}>.` +
+      (reason ? `\n\n**Reason:** ${reason}` : ''), false
+    ));
+  } catch {}
+
+  await interaction.update({ ...errorCard(`Event request **${req.title}** denied by <@${interaction.user.id}>.${reason ? `\n**Reason:** ${reason}` : ''}`, false), components: [] });
+}
+
+module.exports.handleEventDecision  = handleEventDecision;
+module.exports.handleEventDenyModal = handleEventDenyModal;

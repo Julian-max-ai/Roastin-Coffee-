@@ -1,79 +1,101 @@
+'use strict';
+const { MessageFlags } = require('discord.js');
+const { errorCard } = require('../ui');
+
 module.exports = {
   name: 'interactionCreate',
   async execute(interaction, client) {
-
-    // Slash commands
-    if (interaction.isChatInputCommand()) {
-      const command = client.commands.get(interaction.commandName);
-      if (!command) return;
+    try {
+      await route(interaction, client);
+    } catch (err) {
+      console.error('[interactionCreate]', err);
+      const reply = errorCard('Something went wrong. Please try again or contact an admin.');
       try {
-        await command.execute(interaction);
-      } catch (err) {
-        console.error(err);
-        const msg = { content: '❌ An error occurred.', ephemeral: true };
-        interaction.replied || interaction.deferred ? await interaction.followUp(msg) : await interaction.reply(msg);
-      }
-      return;
-    }
-
-    // Autocomplete
-    if (interaction.isAutocomplete()) {
-      const command = client.commands.get(interaction.commandName);
-      if (command?.autocomplete) await command.autocomplete(interaction).catch(console.error);
-      return;
-    }
-
-    // Modal submits
-    if (interaction.isModalSubmit()) {
-      if (interaction.customId.startsWith('dweeb_send:') || interaction.customId.startsWith('dweeb_edit:')) {
-        const { handleDweebModal } = require('../commands/dweeb');
-        return handleDweebModal(interaction);
-      }
-      if (interaction.customId.startsWith('ticket_edit:')) {
-        const { handleTicketEditModal } = require('../commands/ticket-panel');
-        return handleTicketEditModal(interaction);
-      }
-      if (interaction.customId.startsWith('cfg_text_modal:') || interaction.customId === 'cfg_reviewLink_modal') {
-        const { handleConfigInteraction } = require('../commands/config');
-        return handleConfigInteraction(interaction);
-      }
-      return;
-    }
-
-    // Config interactions
-    const { handleConfigInteraction } = require('../commands/config');
-    const isConfigInteraction =
-      (interaction.isStringSelectMenu() && ['cfg_category', 'cfg_ch_pick', 'cfg_reviewMode', 'cfg_text_pick'].includes(interaction.customId)) ||
-      (interaction.isChannelSelectMenu() && (interaction.customId.startsWith('cfg_channel:') || interaction.customId === 'cfg_ticketCategory')) ||
-      (interaction.isRoleSelectMenu() && ['cfg_prStaffRoles', 'cfg_partnerRepRoles'].includes(interaction.customId)) ||
-      (interaction.isButton() && ['cfg_back', 'cfg_setReviewLink'].includes(interaction.customId));
-
-    if (isConfigInteraction) return handleConfigInteraction(interaction);
-
-    // Buttons
-    if (interaction.isButton()) {
-      const customId = interaction.customId;
-
-      if (customId.startsWith('ticket_open:')) {
-        const { handleTicketOpen } = require('../commands/ticket-panel');
-        return handleTicketOpen(interaction);
-      }
-
-      if (customId.startsWith('review_start:')) {
-        const { handleReviewStart } = require('../commands/review');
-        return handleReviewStart(interaction);
-      }
-
-      if (customId.startsWith('event_approve:') || customId.startsWith('event_deny:')) {
-        const { handleEventDecision } = require('../commands/event-request');
-        return handleEventDecision(interaction);
-      }
-    }
-
-    // Select menus
-    if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_select') {
-      const { handleTicketOpen } = require('../commands/ticket-panel');
-      return handleTicketOpen(interaction);
+        interaction.replied || interaction.deferred
+          ? await interaction.followUp(reply)
+          : await interaction.reply(reply);
+      } catch {}
     }
   },
 };
+
+async function route(interaction, client) {
+
+  // ── Slash commands ──────────────────────────────────────────────────────────
+  if (interaction.isChatInputCommand()) {
+    const cmd = client.commands.get(interaction.commandName);
+    if (cmd) await cmd.execute(interaction);
+    return;
+  }
+
+  // ── Autocomplete ────────────────────────────────────────────────────────────
+  if (interaction.isAutocomplete()) {
+    const cmd = client.commands.get(interaction.commandName);
+    if (cmd?.autocomplete) await cmd.autocomplete(interaction);
+    return;
+  }
+
+  // ── Modal submits ───────────────────────────────────────────────────────────
+  if (interaction.isModalSubmit()) {
+    const id = interaction.customId;
+    if (id.startsWith('dweeb_send:') || id.startsWith('dweeb_edit:')) {
+      return require('../commands/dweeb').handleDweebModal(interaction);
+    }
+    if (id.startsWith('ticket_edit:')) {
+      return require('../commands/ticket-panel').handleTicketEditModal(interaction);
+    }
+    if (id.startsWith('review_submit:')) {
+      return require('../commands/review').handleReviewSubmit(interaction);
+    }
+    if (id.startsWith('event_deny_reason:')) {
+      return require('../commands/event-request').handleEventDenyModal(interaction);
+    }
+    if (id.startsWith('cfg_text_modal:') || id === 'cfg_reviewLink_modal') {
+      return require('../commands/config').handleConfigInteraction(interaction);
+    }
+    return;
+  }
+
+  // ── Config interactions (selects + buttons) ─────────────────────────────────
+  const { handleConfigInteraction } = require('../commands/config');
+  const cfgIds = ['cfg_category', 'cfg_ch_pick', 'cfg_reviewMode', 'cfg_text_pick'];
+  const cfgChannelIds = id => id?.startsWith('cfg_channel:') || id === 'cfg_ticketCategory';
+  const cfgRoleIds    = ['cfg_prStaffRoles', 'cfg_partnerRepRoles'];
+  const cfgButtonIds  = ['cfg_back', 'cfg_setReviewLink'];
+
+  if (
+    (interaction.isStringSelectMenu()  && cfgIds.includes(interaction.customId)) ||
+    (interaction.isChannelSelectMenu() && cfgChannelIds(interaction.customId)) ||
+    (interaction.isRoleSelectMenu()    && cfgRoleIds.includes(interaction.customId)) ||
+    (interaction.isButton()            && cfgButtonIds.includes(interaction.customId))
+  ) {
+    return handleConfigInteraction(interaction);
+  }
+
+  // ── Buttons ─────────────────────────────────────────────────────────────────
+  if (interaction.isButton()) {
+    const id = interaction.customId;
+
+    if (id.startsWith('ticket_open:'))          return require('../commands/ticket-panel').handleTicketOpen(interaction);
+    if (id === 'ticket_close')                  return require('../commands/ticket-panel').handleTicketClose(interaction);
+    if (id === 'ticket_claim')                  return require('../commands/ticket-panel').handleTicketClaim(interaction);
+    if (id.startsWith('review_start:'))         return require('../commands/review').handleReviewStart(interaction);
+    if (id.startsWith('event_approve:') || id.startsWith('event_deny:')) {
+      return require('../commands/event-request').handleEventDecision(interaction);
+    }
+    if (id.startsWith('partner_confirm_remove:')) {
+      const partnerId = id.split(':')[1];
+      const Partner   = require('../models/Partner');
+      const GuildConfig = require('../models/GuildConfig');
+      const partner   = await Partner.findByIdAndDelete(partnerId);
+      if (!partner) return interaction.update(errorCard('Partner not found.'));
+      await interaction.update({ ...require('../ui').successCard(`**${partner.name}** has been removed.`), components: [] });
+      await require('../commands/partner').updatePartnerList(interaction.client, interaction.guildId);
+      await require('../commands/partner').sendLog(interaction.client, interaction.guildId, `🗑️ Partner Removed`, `**${partner.name}** removed by <@${interaction.user.id}>`);
+      return;
+    }
+    if (id === 'partner_cancel_remove') {
+      return interaction.update({ ...require('../ui').successCard('Removal cancelled.'), components: [] });
+    }
+  }
+}

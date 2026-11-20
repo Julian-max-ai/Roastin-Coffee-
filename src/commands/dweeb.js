@@ -1,7 +1,8 @@
+'use strict';
 const { SlashCommandBuilder, PermissionFlagsBits, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
 const { REST } = require('@discordjs/rest');
 const { Routes } = require('discord-api-types/v10');
-const GuildConfig = require('../models/GuildConfig');
+const { successCard, errorCard } = require('../ui');
 
 const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
@@ -10,46 +11,31 @@ module.exports = {
     .setName('dweeb')
     .setDescription('Send a dweeb.faizo.net Components V2 message.')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-    .addSubcommand(sub => sub
-      .setName('send')
-      .setDescription('Send a dweeb JSON payload to a channel.')
+    .addSubcommand(s => s.setName('send').setDescription('Send a dweeb JSON payload to a channel.')
       .addChannelOption(o => o.setName('channel').setDescription('Target channel').setRequired(true)))
-    .addSubcommand(sub => sub
-      .setName('edit')
-      .setDescription('Edit an existing dweeb message.')
+    .addSubcommand(s => s.setName('edit').setDescription('Edit an existing dweeb message.')
       .addChannelOption(o => o.setName('channel').setDescription('Channel with the message').setRequired(true))
       .addStringOption(o => o.setName('message_id').setDescription('Message ID to edit').setRequired(true))),
 
   async execute(interaction) {
-    const sub = interaction.options.getSubcommand();
+    const sub     = interaction.options.getSubcommand();
     const channel = interaction.options.getChannel('channel');
 
     if (sub === 'send') {
-      const modal = new ModalBuilder()
-        .setCustomId(`dweeb_send:${channel.id}`)
-        .setTitle('Paste Dweeb JSON Payload');
+      const modal = new ModalBuilder().setCustomId(`dweeb_send:${channel.id}`).setTitle('Paste Dweeb JSON Payload');
       modal.addComponents(new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId('json_payload')
-          .setLabel('JSON from dweeb.faizo.net → Export → JSON')
-          .setStyle(TextInputStyle.Paragraph)
-          .setPlaceholder('{"components": [...], "flags": 32768}')
-          .setRequired(true)
+        new TextInputBuilder().setCustomId('json_payload').setLabel('JSON from dweeb.faizo.net → Export → JSON')
+          .setStyle(TextInputStyle.Paragraph).setPlaceholder('{"components": [...], "flags": 32768}').setRequired(true)
       ));
       return interaction.showModal(modal);
     }
 
     if (sub === 'edit') {
       const messageId = interaction.options.getString('message_id');
-      const modal = new ModalBuilder()
-        .setCustomId(`dweeb_edit:${channel.id}:${messageId}`)
-        .setTitle('Edit Dweeb Message');
+      const modal = new ModalBuilder().setCustomId(`dweeb_edit:${channel.id}:${messageId}`).setTitle('Edit Dweeb Message');
       modal.addComponents(new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId('json_payload')
-          .setLabel('New JSON from dweeb.faizo.net')
-          .setStyle(TextInputStyle.Paragraph)
-          .setRequired(true)
+        new TextInputBuilder().setCustomId('json_payload').setLabel('New JSON from dweeb.faizo.net')
+          .setStyle(TextInputStyle.Paragraph).setRequired(true)
       ));
       return interaction.showModal(modal);
     }
@@ -57,8 +43,8 @@ module.exports = {
 };
 
 async function handleDweebModal(interaction) {
-  const parts = interaction.customId.split(':');
-  const action = parts[0];
+  const parts     = interaction.customId.split(':');
+  const action    = parts[0];
   const channelId = parts[1];
 
   let payload;
@@ -67,7 +53,7 @@ async function handleDweebModal(interaction) {
     payload = cleanPayload(payload);
     payload.flags = 32768;
   } catch {
-    return interaction.reply({ content: '❌ Invalid JSON.', ephemeral: true });
+    return interaction.reply(errorCard('Invalid JSON. Please copy the exact JSON from dweeb.faizo.net.'));
   }
 
   await interaction.deferReply({ ephemeral: true });
@@ -75,17 +61,16 @@ async function handleDweebModal(interaction) {
   try {
     if (action === 'dweeb_send') {
       await rest.post(Routes.channelMessages(channelId), { body: payload });
-      return interaction.editReply({ content: `✅ Message sent in <#${channelId}>!` });
+      return interaction.editReply(successCard(`Message sent in <#${channelId}>!`));
     }
-
     if (action === 'dweeb_edit') {
       const messageId = parts[2];
       await rest.patch(Routes.channelMessage(channelId, messageId), { body: payload });
-      return interaction.editReply({ content: `✅ Message updated in <#${channelId}>!` });
+      return interaction.editReply(successCard(`Message updated in <#${channelId}>!`));
     }
   } catch (err) {
-    console.error(err);
-    return interaction.editReply({ content: `❌ Failed: ${err.message}` });
+    console.error('[dweeb]', err);
+    return interaction.editReply(errorCard(`Failed to send: ${err.message}`));
   }
 }
 

@@ -1,49 +1,41 @@
+'use strict';
 require('dotenv').config();
 const http = require('http');
 http.createServer((_, res) => res.end('OK')).listen(process.env.PORT || 3000);
+
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const mongoose = require('mongoose');
-const fs = require('fs');
+const fs   = require('fs');
 const path = require('path');
 const cron = require('node-cron');
 
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.DirectMessages,
-  ],
-});
-
+const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 client.commands = new Collection();
 
 // Load commands
-const commandsPath = path.join(__dirname, 'commands');
-for (const file of fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'))) {
-  const command = require(path.join(commandsPath, file));
-  if (command.data && command.execute) {
-    client.commands.set(command.data.name, command);
-  }
+for (const file of fs.readdirSync(path.join(__dirname, 'commands')).filter(f => f.endsWith('.js'))) {
+  const cmd = require(path.join(__dirname, 'commands', file));
+  if (cmd.data && cmd.execute) client.commands.set(cmd.data.name, cmd);
 }
 
 // Load events
-const eventsPath = path.join(__dirname, 'events');
-for (const file of fs.readdirSync(eventsPath).filter(f => f.endsWith('.js'))) {
-  const event = require(path.join(eventsPath, file));
-  if (event.once) {
-    client.once(event.name, (...args) => event.execute(...args, client));
-  } else {
-    client.on(event.name, (...args) => event.execute(...args, client));
-  }
+for (const file of fs.readdirSync(path.join(__dirname, 'events')).filter(f => f.endsWith('.js'))) {
+  const ev = require(path.join(__dirname, 'events', file));
+  client[ev.once ? 'once' : 'on'](ev.name, (...args) => ev.execute(...args, client));
 }
 
-// Monthly review cron: runs on the 1st of every month at 09:00 UTC
+// Monthly review cron — 1st of every month at 09:00 UTC
 cron.schedule('0 9 1 * *', async () => {
+  console.log('[cron] Running monthly reviews...');
   const { sendMonthlyReviews } = require('./commands/review');
-  await sendMonthlyReviews(client);
+  const count = await sendMonthlyReviews(client).catch(err => { console.error('[cron]', err); return 0; });
+  console.log(`[cron] Monthly reviews sent: ${count}`);
 });
 
-// Connect to MongoDB then start bot
+// Global error handling — prevent worker crash
+process.on('unhandledRejection', err => console.error('[unhandledRejection]', err));
+process.on('uncaughtException',  err => console.error('[uncaughtException]', err));
+
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => {
     console.log('Connected to MongoDB Atlas');
