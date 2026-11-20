@@ -7,7 +7,7 @@ const {
   ModalBuilder, TextInputBuilder, TextInputStyle,
 } = require('discord.js');
 const GuildConfig = require('../models/GuildConfig');
-const { configPanel, successCard, errorCard } = require('../ui');
+const { configPanel, automationPanel, successCard, errorCard } = require('../ui');
 
 function mainMenu() {
   return new ActionRowBuilder().addComponents(
@@ -17,8 +17,9 @@ function mainMenu() {
       .addOptions([
         { label: '📢 Channels', value: 'channels', description: 'Announcement, review, log, partner list, ticket category' },
         { label: '👥 Roles', value: 'roles', description: 'PR staff and partner representative roles' },
-        { label: '📋 Review System', value: 'review', description: 'Review mode and link' },
+        { label: '📋 Review System', value: 'review', description: 'Review mode, link and questions' },
         { label: '✏️ Custom Texts', value: 'texts', description: 'Partner list, ticket panel and review texts' },
+        { label: '⚙️ Automation', value: 'automation', description: 'Ticket, infraction, review and event automation' },
       ])
   );
 }
@@ -32,7 +33,7 @@ module.exports = {
   async execute(interaction) {
     await interaction.deferReply({ ephemeral: true });
     const cfg = await GuildConfig.findOne({ guildId: interaction.guildId });
-    await interaction.editReply({ ...configPanel(cfg), components: [mainMenu()] });
+    await interaction.editReply(configPanel(cfg, [mainMenu()]));
   },
 };
 
@@ -43,94 +44,85 @@ async function handleConfigInteraction(interaction) {
     const cat = interaction.values[0];
 
     if (cat === 'channels') {
-      return interaction.update({
-        ...configPanel(await GuildConfig.findOne({ guildId })),
-        components: [
-          new ActionRowBuilder().addComponents(
-            new StringSelectMenuBuilder().setCustomId('cfg_ch_pick').setPlaceholder('Which channel to set?').addOptions([
-              { label: '📢 Announcement Channel', value: 'announcementChannel' },
-              { label: '📋 Review Channel', value: 'reviewChannel' },
-              { label: '📝 Log Channel', value: 'logChannel' },
-              { label: '📃 Partner List Channel', value: 'partnerListChannel' },
-            ])
-          ),
-          new ActionRowBuilder().addComponents(
-            new ChannelSelectMenuBuilder().setCustomId('cfg_ticketCategory').setPlaceholder('🎫 Ticket Category').addChannelTypes(ChannelType.GuildCategory)
-          ),
-          new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('cfg_back').setLabel('← Back').setStyle(ButtonStyle.Secondary)
-          ),
-        ],
-      });
+      return interaction.update(configPanel(await GuildConfig.findOne({ guildId }), [
+        new ActionRowBuilder().addComponents(
+          new StringSelectMenuBuilder().setCustomId('cfg_ch_pick').setPlaceholder('Which channel to set?').addOptions([
+            { label: '📢 Announcement Channel', value: 'announcementChannel' },
+            { label: '📋 Review Channel', value: 'reviewChannel' },
+            { label: '📝 Log Channel', value: 'logChannel' },
+            { label: '📃 Partner List Channel', value: 'partnerListChannel' },
+          ])
+        ),
+        new ActionRowBuilder().addComponents(
+          new ChannelSelectMenuBuilder().setCustomId('cfg_ticketCategory').setPlaceholder('🎫 Ticket Category').addChannelTypes(ChannelType.GuildCategory)
+        ),
+        new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('cfg_back').setLabel('← Back').setStyle(ButtonStyle.Secondary)
+        ),
+      ]));
     }
 
     if (cat === 'roles') {
-      return interaction.update({
-        ...configPanel(await GuildConfig.findOne({ guildId })),
-        components: [
-          new ActionRowBuilder().addComponents(
-            new RoleSelectMenuBuilder().setCustomId('cfg_prStaffRoles').setPlaceholder('👔 PR Staff Roles').setMinValues(1).setMaxValues(5)
-          ),
-          new ActionRowBuilder().addComponents(
-            new RoleSelectMenuBuilder().setCustomId('cfg_partnerRepRoles').setPlaceholder('🤝 Partner Rep Roles').setMinValues(1).setMaxValues(5)
-          ),
-          new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('cfg_back').setLabel('← Back').setStyle(ButtonStyle.Secondary)
-          ),
-        ],
-      });
+      return interaction.update(configPanel(await GuildConfig.findOne({ guildId }), [
+        new ActionRowBuilder().addComponents(
+          new RoleSelectMenuBuilder().setCustomId('cfg_prStaffRoles').setPlaceholder('👔 PR Staff Roles').setMinValues(1).setMaxValues(5)
+        ),
+        new ActionRowBuilder().addComponents(
+          new RoleSelectMenuBuilder().setCustomId('cfg_partnerRepRoles').setPlaceholder('🤝 Partner Rep Roles').setMinValues(1).setMaxValues(5)
+        ),
+        new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('cfg_back').setLabel('← Back').setStyle(ButtonStyle.Secondary)
+        ),
+      ]));
     }
 
     if (cat === 'review') {
-      return interaction.update({
-        ...configPanel(await GuildConfig.findOne({ guildId })),
-        components: [
-          new ActionRowBuilder().addComponents(
-            new StringSelectMenuBuilder().setCustomId('cfg_reviewMode').setPlaceholder('Review mode...').addOptions([
-              { label: '💬 DM Questions', value: 'dm', description: 'Bot sends a modal with questions' },
-              { label: '🔗 External Link', value: 'link', description: 'Button links to Google Doc or form' },
-            ])
-          ),
-          new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('cfg_setReviewLink').setLabel('🔗 Set Review Link').setStyle(ButtonStyle.Primary),
-            new ButtonBuilder().setCustomId('cfg_back').setLabel('← Back').setStyle(ButtonStyle.Secondary),
-          ),
-        ],
-      });
+      return interaction.update(configPanel(await GuildConfig.findOne({ guildId }), [
+        new ActionRowBuilder().addComponents(
+          new StringSelectMenuBuilder().setCustomId('cfg_reviewMode').setPlaceholder('Review mode...').addOptions([
+            { label: '💬 In-Discord Form', value: 'dm', description: 'Bot sends a modal with questions' },
+            { label: '🔗 External Link', value: 'link', description: 'Button links to Google Doc or form' },
+          ])
+        ),
+        new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('cfg_setReviewLink').setLabel('🔗 Set Review Link').setStyle(ButtonStyle.Primary),
+          new ButtonBuilder().setCustomId('cfg_setReviewQuestions').setLabel('❓ Set Review Questions').setStyle(ButtonStyle.Primary),
+          new ButtonBuilder().setCustomId('cfg_back').setLabel('← Back').setStyle(ButtonStyle.Secondary),
+        ),
+      ]));
     }
 
     if (cat === 'texts') {
-      return interaction.update({
-        ...configPanel(await GuildConfig.findOne({ guildId })),
-        components: [
-          new ActionRowBuilder().addComponents(
-            new StringSelectMenuBuilder().setCustomId('cfg_text_pick').setPlaceholder('Which text to edit?').addOptions([
-              { label: '📃 Partner List Text', value: 'partnerListText', description: 'Use {partners} as placeholder' },
-              { label: '🎫 Ticket Panel Text', value: 'ticketPanelText' },
-              { label: '📋 Review Message Text', value: 'reviewText' },
-            ])
-          ),
-          new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('cfg_back').setLabel('← Back').setStyle(ButtonStyle.Secondary)
-          ),
-        ],
-      });
+      return interaction.update(configPanel(await GuildConfig.findOne({ guildId }), [
+        new ActionRowBuilder().addComponents(
+          new StringSelectMenuBuilder().setCustomId('cfg_text_pick').setPlaceholder('Which text to edit?').addOptions([
+            { label: '📃 Partner List Text', value: 'partnerListText', description: 'Use {partners} as placeholder' },
+            { label: '🎫 Ticket Panel Text', value: 'ticketPanelText' },
+            { label: '📋 Review Message Text', value: 'reviewText' },
+          ])
+        ),
+        new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('cfg_back').setLabel('← Back').setStyle(ButtonStyle.Secondary)
+        ),
+      ]));
+    }
+
+    if (cat === 'automation') {
+      const cfg = await GuildConfig.findOne({ guildId });
+      return interaction.update(automationPanel(cfg));
     }
   }
 
   if (interaction.isStringSelectMenu() && interaction.customId === 'cfg_ch_pick') {
     const key = interaction.values[0];
-    return interaction.update({
-      ...configPanel(await GuildConfig.findOne({ guildId })),
-      components: [
-        new ActionRowBuilder().addComponents(
-          new ChannelSelectMenuBuilder().setCustomId(`cfg_channel:${key}`).setPlaceholder('Select channel...').addChannelTypes(ChannelType.GuildText)
-        ),
-        new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId('cfg_back').setLabel('← Back').setStyle(ButtonStyle.Secondary)
-        ),
-      ],
-    });
+    return interaction.update(configPanel(await GuildConfig.findOne({ guildId }), [
+      new ActionRowBuilder().addComponents(
+        new ChannelSelectMenuBuilder().setCustomId(`cfg_channel:${key}`).setPlaceholder('Select channel...').addChannelTypes(ChannelType.GuildText)
+      ),
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('cfg_back').setLabel('← Back').setStyle(ButtonStyle.Secondary)
+      ),
+    ]));
   }
 
   if (interaction.isChannelSelectMenu()) {
@@ -140,7 +132,7 @@ async function handleConfigInteraction(interaction) {
     if (!key) return;
     await GuildConfig.findOneAndUpdate({ guildId }, { [key]: interaction.values[0] }, { upsert: true });
     const cfg = await GuildConfig.findOne({ guildId });
-    return interaction.update({ ...configPanel(cfg), components: [mainMenu()] });
+    return interaction.update(configPanel(cfg, [mainMenu()]));
   }
 
   if (interaction.isRoleSelectMenu()) {
@@ -148,13 +140,13 @@ async function handleConfigInteraction(interaction) {
     if (!['cfg_prStaffRoles', 'cfg_partnerRepRoles'].includes(key)) return;
     await GuildConfig.findOneAndUpdate({ guildId }, { [key.replace('cfg_', '')]: interaction.values }, { upsert: true });
     const cfg = await GuildConfig.findOne({ guildId });
-    return interaction.update({ ...configPanel(cfg), components: [mainMenu()] });
+    return interaction.update(configPanel(cfg, [mainMenu()]));
   }
 
   if (interaction.isStringSelectMenu() && interaction.customId === 'cfg_reviewMode') {
     await GuildConfig.findOneAndUpdate({ guildId }, { reviewMode: interaction.values[0] }, { upsert: true });
     const cfg = await GuildConfig.findOne({ guildId });
-    return interaction.update({ ...configPanel(cfg), components: [mainMenu()] });
+    return interaction.update(configPanel(cfg, [mainMenu()]));
   }
 
   if (interaction.isStringSelectMenu() && interaction.customId === 'cfg_text_pick') {
@@ -177,6 +169,21 @@ async function handleConfigInteraction(interaction) {
     return interaction.showModal(modal);
   }
 
+  if (interaction.isButton() && interaction.customId === 'cfg_setReviewQuestions') {
+    const cfg = await GuildConfig.findOne({ guildId });
+    const current = (cfg?.reviewQuestions || []).join('\n');
+    const modal = new ModalBuilder().setCustomId('cfg_reviewQuestions_modal').setTitle('Set Review Questions');
+    modal.addComponents(new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId('questions_value')
+        .setLabel('One question per line (max 5, max 45 chars each)')
+        .setStyle(TextInputStyle.Paragraph)
+        .setValue(current)
+        .setRequired(true)
+    ));
+    return interaction.showModal(modal);
+  }
+
   if (interaction.isModalSubmit()) {
     if (interaction.customId.startsWith('cfg_text_modal:')) {
       const key   = interaction.customId.replace('cfg_text_modal:', '');
@@ -189,11 +196,24 @@ async function handleConfigInteraction(interaction) {
       await GuildConfig.findOneAndUpdate({ guildId }, { reviewLink: value }, { upsert: true });
       return interaction.reply(successCard('Review link updated.'));
     }
+    if (interaction.customId === 'cfg_reviewQuestions_modal') {
+      const raw = interaction.fields.getTextInputValue('questions_value');
+      const questions = raw.split('\n')
+        .map(q => q.trim())
+        .filter(q => q.length > 0)
+        .slice(0, 5)
+        .map(q => q.slice(0, 45));
+      if (questions.length === 0) {
+        return interaction.reply(errorCard('Please enter at least one question.'));
+      }
+      await GuildConfig.findOneAndUpdate({ guildId }, { reviewQuestions: questions }, { upsert: true });
+      return interaction.reply(successCard(`Review questions updated (${questions.length}).`));
+    }
   }
 
   if (interaction.isButton() && interaction.customId === 'cfg_back') {
     const cfg = await GuildConfig.findOne({ guildId });
-    return interaction.update({ ...configPanel(cfg), components: [mainMenu()] });
+    return interaction.update(configPanel(cfg, [mainMenu()]));
   }
 }
 

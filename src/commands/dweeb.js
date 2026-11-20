@@ -1,5 +1,5 @@
 'use strict';
-const { SlashCommandBuilder, PermissionFlagsBits, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, MessageFlags } = require('discord.js');
 const { REST } = require('@discordjs/rest');
 const { Routes } = require('discord-api-types/v10');
 const { successCard, errorCard } = require('../ui');
@@ -56,21 +56,21 @@ async function handleDweebModal(interaction) {
     return interaction.reply(errorCard('Invalid JSON. Please copy the exact JSON from dweeb.faizo.net.'));
   }
 
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   try {
     if (action === 'dweeb_send') {
       await rest.post(Routes.channelMessages(channelId), { body: payload });
-      return interaction.reply(successCard(`Message sent in <#${channelId}>!`));
+      return interaction.editReply(successCard(`Message sent in <#${channelId}>!`));
     }
     if (action === 'dweeb_edit') {
       const messageId = parts[2];
       await rest.patch(Routes.channelMessage(channelId, messageId), { body: payload });
-      return interaction.reply(successCard(`Message updated in <#${channelId}>!`));
+      return interaction.editReply(successCard(`Message updated in <#${channelId}>!`));
     }
   } catch (err) {
     console.error('[dweeb]', err);
-    return interaction.reply(errorCard(`Failed to send: ${err.message}`));
+    return interaction.editReply(errorCard(`Failed to send: ${err.message}`));
   }
 }
 

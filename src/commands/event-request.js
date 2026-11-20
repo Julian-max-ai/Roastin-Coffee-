@@ -2,9 +2,10 @@
 const { SlashCommandBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
 const EventRequest = require('../models/EventRequest');
 const GuildConfig  = require('../models/GuildConfig');
-const { eventRequestCard, eventAnnouncementCard, errorCard, successCard, logCard } = require('../ui');
+const { eventRequestCard, eventAnnouncementCard, eventAnnouncementCardWithCount, errorCard, successCard, logCard } = require('../ui');
 const { isStaff } = require('../utils/permissions');
 const { EMOJI, EVENT_REQUEST_COOLDOWN_MS } = require('../theme');
+const { audit } = require('../utils/audit');
 
 const cooldowns = new Map();
 
@@ -16,14 +17,14 @@ module.exports = {
     .addStringOption(o => o.setName('description').setDescription('Event description').setRequired(true))
     .addStringOption(o => o.setName('date').setDescription('Date & time (e.g. July 20, 2025 at 3PM UTC)').setRequired(true))
     .addStringOption(o => o.setName('type').setDescription('Type').setRequired(true)
-      .addChoices({ name: 'Event', value: 'Event' }, { name: 'Shift', value: 'Shift' })),
+      .addChoices({ name: 'Event', value: 'Event' }, { name: 'Shift', value: 'Shift' }))
+    .addStringOption(o => o.setName('time').setDescription('Structured time: YYYY-MM-DD HH:mm (UTC)').setRequired(false)),
 
   async execute(interaction) {
     const { guildId } = interaction;
     const cfg = await GuildConfig.findOne({ guildId });
     if (!cfg?.announcementChannel) return interaction.reply(errorCard('No announcement channel configured. Ask an admin to run `/config`.'));
 
-    // Cooldown
     const key  = `${guildId}:${interaction.user.id}`;
     const last = cooldowns.get(key) || 0;
     if (Date.now() - last < EVENT_REQUEST_COOLDOWN_MS) {
@@ -32,6 +33,13 @@ module.exports = {
     }
     cooldowns.set(key, Date.now());
 
+    const timeStr = interaction.options.getString('time');
+    let startsAt = null;
+    if (timeStr) {
+      const parsed = new Date(timeStr.replace(' ', 'T') + ':00Z');
+      if (!isNaN(parsed.getTime())) startsAt = parsed;
+    }
+
     const req = await EventRequest.create({
       guildId,
       submitterId:  interaction.user.id,
@@ -39,10 +47,10 @@ module.exports = {
       description:  interaction.options.getString('description'),
       date:         interaction.options.getString('date'),
       type:         interaction.options.getString('type'),
+      startsAt,
     });
 
     const card = eventRequestCard(req, interaction.user.id);
-
     const targetChannelId = cfg.logChannel || cfg.announcementChannel;
     const ch = await interaction.client.channels.fetch(targetChannelId).catch(() => null);
     if (ch) {
@@ -50,7 +58,8 @@ module.exports = {
       if (msg) await EventRequest.findByIdAndUpdate(req._id, { logMessageId: msg.id });
     }
 
-    await interaction.reply(successCard('Your event request has been submitted for staff review.'));
+    await audit(guildId, interaction.user.id, 'event_request', 'event', req._id.toString(), { title: req.title });
+    return interaction.reply(successCard('Your event request has been submitted for staff review.'));
   },
 };
 
@@ -77,11 +86,19 @@ async function handleEventDecision(interaction) {
   await EventRequest.findByIdAndUpdate(reqId, { status: 'approved', decidedBy: interaction.user.id, decidedAt: new Date() });
 
   const announceCh = await interaction.client.channels.fetch(cfg.announcementChannel).catch(() => null);
-  if (announceCh) await announceCh.send(eventAnnouncementCard(req)).catch(() => {});
+  let announceMsg = null;
+  if (announceCh) {
+    announceMsg = await announceCh.send(eventAnnouncementCard(req)).catch(() => null);
+    if (announceMsg) await EventRequest.findByIdAndUpdate(reqId, { announceMsgId: announceMsg.id });
+  }
 
-  const updated = eventAnnouncementCard(req);
-  await interaction.update({ ...updated, components: [] });
+  // V2 fix: update the request card to show approved state — no components:[]
+  await interaction.update(logCard(
+    `${EMOJI.event} Event Approved — ${req.title}`,
+    `Approved by <@${interaction.user.id}>${announceMsg ? `\nAnnounced in <#${cfg.announcementChannel}>` : ''}`
+  ));
 
+  await audit(guildId, interaction.user.id, 'event_approve', 'event', reqId, { title: req.title });
   await require('./partner').sendLog(interaction.client, guildId,
     `${EMOJI.event} Event Approved — ${req.title}`,
     `Approved by <@${interaction.user.id}>`
@@ -94,10 +111,8 @@ async function handleEventDenyModal(interaction) {
   const { guildId } = interaction;
 
   await EventRequest.findByIdAndUpdate(reqId, { status: 'denied', decidedBy: interaction.user.id, decidedAt: new Date(), denyReason: reason });
-
   const req = await EventRequest.findById(reqId);
 
-  // Try to DM submitter
   try {
     const user = await interaction.client.users.fetch(req.submitterId);
     await user.send(errorCard(
@@ -106,8 +121,34 @@ async function handleEventDenyModal(interaction) {
     ));
   } catch {}
 
-  await interaction.update({ ...errorCard(`Event request **${req.title}** denied by <@${interaction.user.id}>.${reason ? `\n**Reason:** ${reason}` : ''}`, false), components: [] });
+  // V2 fix: update to a log card — no components:[]
+  await interaction.update(logCard(
+    `${EMOJI.event} Event Denied — ${req.title}`,
+    `Denied by <@${interaction.user.id}>${reason ? `\n**Reason:** ${reason}` : ''}`
+  ));
+
+  await audit(guildId, interaction.user.id, 'event_deny', 'event', reqId, { title: req.title, reason });
+}
+
+async function handleEventInterest(interaction) {
+  await interaction.deferUpdate();
+  const reqId = interaction.customId.replace('event_interest:', '');
+  const userId = interaction.user.id;
+
+  const req = await EventRequest.findById(reqId);
+  if (!req || req.status !== 'approved') return;
+
+  const already = req.interestedUserIds.includes(userId);
+  if (already) {
+    await EventRequest.findByIdAndUpdate(reqId, { $pull: { interestedUserIds: userId } });
+  } else {
+    await EventRequest.findByIdAndUpdate(reqId, { $addToSet: { interestedUserIds: userId } });
+  }
+
+  const updated = await EventRequest.findById(reqId);
+  await interaction.editReply(eventAnnouncementCardWithCount(updated, updated.interestedUserIds.length));
 }
 
 module.exports.handleEventDecision  = handleEventDecision;
 module.exports.handleEventDenyModal = handleEventDenyModal;
+module.exports.handleEventInterest  = handleEventInterest;

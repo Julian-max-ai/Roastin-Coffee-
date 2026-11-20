@@ -1,6 +1,7 @@
 'use strict';
 const { MessageFlags } = require('discord.js');
-const { errorCard } = require('../ui');
+const { errorCard, successCard } = require('../ui');
+const { ts } = require('../utils/format');
 
 module.exports = {
   name: 'interactionCreate',
@@ -54,6 +55,26 @@ async function route(interaction, client) {
     if (id.startsWith('cfg_text_modal:') || id === 'cfg_reviewLink_modal') {
       return require('../commands/config').handleConfigInteraction(interaction);
     }
+    if (id.startsWith('infraction_appeal_submit:')) {
+      const infractionId = id.split(':')[1];
+      const reason = interaction.fields.getTextInputValue('reason');
+      const { guildId } = interaction;
+      const Infraction = require('../models/Infraction');
+      const Partner = require('../models/Partner');
+      const inf = await Infraction.findOne({ _id: infractionId, guildId }).catch(() => null);
+      if (!inf) return interaction.reply(errorCard('Infraction not found.'));
+      await Infraction.findByIdAndUpdate(infractionId, { appealStatus: 'pending', appealReason: reason });
+      const partner = await Partner.findOne({ _id: inf.partnerId, guildId }).catch(() => null);
+      if (partner) {
+        const { infractionAppealCard } = require('../ui');
+        const { logChannel } = await require('../models/GuildConfig').findOne({ guildId }) || {};
+        if (logChannel) {
+          const ch = await interaction.client.channels.fetch(logChannel).catch(() => null);
+          if (ch) await ch.send(infractionAppealCard(inf, partner, reason, interaction.user.id)).catch(() => {});
+        }
+      }
+      return interaction.reply(successCard('Your appeal has been submitted.'));
+    }
     return;
   }
 
@@ -62,7 +83,7 @@ async function route(interaction, client) {
   const cfgIds = ['cfg_category', 'cfg_ch_pick', 'cfg_reviewMode', 'cfg_text_pick'];
   const cfgChannelIds = id => id?.startsWith('cfg_channel:') || id === 'cfg_ticketCategory';
   const cfgRoleIds    = ['cfg_prStaffRoles', 'cfg_partnerRepRoles'];
-  const cfgButtonIds  = ['cfg_back', 'cfg_setReviewLink'];
+  const cfgButtonIds  = ['cfg_back', 'cfg_setReviewLink', 'cfg_setReviewQuestions'];
 
   if (
     (interaction.isStringSelectMenu()  && cfgIds.includes(interaction.customId)) ||
@@ -77,6 +98,66 @@ async function route(interaction, client) {
   if (interaction.isButton()) {
     const id = interaction.customId;
 
+    // Pagination: page:<ctx>:<prev|next>:<page>
+    if (id.startsWith('page:')) {
+      const parts = id.split(':'); // page, ctx, prev|next, page
+      const dir   = parts[2];
+      const cur   = parseInt(parts[3], 10);
+      const next  = dir === 'next' ? cur + 1 : cur - 1;
+
+      const ctxParts = parts[1].split(':'); // ctx may contain ':' for infractions:<id>
+      // Reconstruct: parts[1] is everything between 'page:' and ':prev' or ':next'
+      // Format: page:<ctx>:<dir>:<page> where ctx can contain ':'
+      const ctxTail = id.slice(5); // everything after 'page:'
+      const lastColon = ctxTail.lastIndexOf(':');
+      const secondLastColon = ctxTail.lastIndexOf(':', lastColon - 1);
+      const ctx = ctxTail.slice(0, secondLastColon);
+      const pageNum = parseInt(ctxTail.slice(lastColon + 1), 10);
+      const direction = ctxTail.slice(secondLastColon + 1, lastColon);
+
+      const targetPage = direction === 'next' ? pageNum + 1 : pageNum - 1;
+
+      if (ctx === 'partners') {
+        const Partner = require('../models/Partner');
+        const { partnerListCards, infoCard } = require('../ui');
+        const { EMOJI, PAGE_SIZE } = require('../theme');
+        const { paginate } = require('../utils/pagination');
+        const all = await Partner.find({ guildId: interaction.guildId });
+        if (!all.length) return interaction.update(errorCard('No partners found.'));
+        const { items, totalPages, page, row } = paginate(all, targetPage, PAGE_SIZE, 'partners');
+        let desc = `**${all.length} active partner(s)**\n\n`;
+        for (const pt of items) {
+          desc += `**${pt.name}** — <@${pt.representativeId}>\n> Since ${ts(pt.addedAt, 'D')}\n\n`;
+        }
+        if (totalPages > 1) desc += `-# Page ${page + 1}/${totalPages}`;
+        const res = infoCard(`${EMOJI.partner} Partner List`, desc, true);
+        if (row) res.components = [...res.components, row];
+        return interaction.update(res);
+      }
+
+      if (ctx.startsWith('infractions:')) {
+        const partnerId = ctx.split(':')[1];
+        const Partner = require('../models/Partner');
+        const Infraction = require('../models/Infraction');
+        const { infractionListCard, errorCard } = require('../ui');
+        const { STRIKE_LIMIT, PAGE_SIZE } = require('../theme');
+        const { paginate } = require('../utils/pagination');
+        const partner = await Partner.findOne({ _id: partnerId, guildId: interaction.guildId });
+        if (!partner) return interaction.update(errorCard('Partner not found.'));
+        const all = await Infraction.find({ guildId: interaction.guildId, partnerId, removed: false });
+        const strikes = all.filter(i => i.type === 'strike').length;
+        const { items, totalPages, page, row } = paginate(all, targetPage, PAGE_SIZE, `infractions:${partnerId}`);
+        const res = infractionListCard(partner, items, page, totalPages, strikes, STRIKE_LIMIT);
+        if (row) res.components = [...res.components, row];
+        return interaction.update(res);
+      }
+
+      return interaction.update(errorCard('Unknown pagination context.'));
+    }
+
+    if (id.startsWith('audit_prev:') || id.startsWith('audit_next:')) {
+      return require('../commands/audit').handleAuditPagination(interaction, id.startsWith('audit_next:') ? 'next' : 'prev');
+    }
     if (id.startsWith('ticket_open:'))          return require('../commands/ticket-panel').handleTicketOpen(interaction);
     if (id === 'ticket_close')                  return require('../commands/ticket-panel').handleTicketClose(interaction);
     if (id === 'ticket_claim')                  return require('../commands/ticket-panel').handleTicketClaim(interaction);
@@ -85,18 +166,55 @@ async function route(interaction, client) {
       return require('../commands/event-request').handleEventDecision(interaction);
     }
     if (id.startsWith('partner_confirm_remove:')) {
-      const partnerId = id.split(':')[1];
-      const Partner   = require('../models/Partner');
-      const GuildConfig = require('../models/GuildConfig');
-      const partner   = await Partner.findByIdAndDelete(partnerId);
-      if (!partner) return interaction.update(errorCard('Partner not found.'));
-      await interaction.update({ ...require('../ui').successCard(`**${partner.name}** has been removed.`), components: [] });
-      await require('../commands/partner').updatePartnerList(interaction.client, interaction.guildId);
-      await require('../commands/partner').sendLog(interaction.client, interaction.guildId, `🗑️ Partner Removed`, `**${partner.name}** removed by <@${interaction.user.id}>`);
-      return;
+      return require('../commands/partner').handlePartnerRemoveConfirm(interaction);
     }
     if (id === 'partner_cancel_remove') {
-      return interaction.update({ ...require('../ui').successCard('Removal cancelled.'), components: [] });
+      return interaction.update(successCard('Removal cancelled.'));
+    }
+    if (id === 'ticket_release') return require('../commands/ticket-panel').handleTicketRelease(interaction);
+    if (id.startsWith('ticket_rate:')) return require('../commands/ticket-panel').handleTicketRate(interaction);
+    if (id.startsWith('ticket_rate_feedback:')) return require('../commands/ticket-panel').handleTicketRateFeedbackModal(interaction);
+    if (id.startsWith('infraction_appeal:')) {
+      // show appeal modal
+      const infractionId = id.split(':')[1];
+      const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+      const modal = new ModalBuilder().setCustomId(`infraction_appeal_submit:${infractionId}`).setTitle('Appeal Infraction');
+      modal.addComponents(new ActionRowBuilder().addComponents(
+        new TextInputBuilder().setCustomId('reason').setLabel('Why should this infraction be removed?').setStyle(TextInputStyle.Paragraph).setRequired(true)
+      ));
+      return interaction.showModal(modal);
+    }
+    if (id.startsWith('infraction_terminate:') || id.startsWith('infraction_dismiss:')) {
+      const action = id.startsWith('infraction_terminate:') ? 'terminate' : 'dismiss';
+      const infractionId = id.split(':')[1];
+      const { member, guildId } = interaction;
+      const cfg = await require('../models/GuildConfig').findOne({ guildId });
+      const { isStaff } = require('../utils/permissions');
+      const { errorCard, successCard } = require('../ui');
+      if (!isStaff(member, cfg)) return interaction.reply(errorCard('Only staff can decide infractions.'));
+      const Infraction = require('../models/Infraction');
+      const inf = await Infraction.findOne({ _id: infractionId, guildId }).catch(() => null);
+      if (!inf) return interaction.update(errorCard('Infraction not found.'));
+      const update = action === 'terminate' ? { type: 'termination' } : { removed: true };
+      await Infraction.findByIdAndUpdate(infractionId, update);
+      await interaction.update(successCard(`Infraction ${action === 'terminate' ? 'escalated to termination' : 'dismissed'}.`));
+    }
+    if (id.startsWith('appeal_accept:') || id.startsWith('appeal_reject:')) {
+      const action = id.startsWith('appeal_accept:') ? 'accept' : 'reject';
+      const infractionId = id.split(':')[1];
+      const { member, guildId } = interaction;
+      const cfg = await require('../models/GuildConfig').findOne({ guildId });
+      const { isStaff } = require('../utils/permissions');
+      const { errorCard, successCard } = require('../ui');
+      if (!isStaff(member, cfg)) return interaction.reply(errorCard('Only staff can decide appeals.'));
+      const Infraction = require('../models/Infraction');
+      const inf = await Infraction.findOne({ _id: infractionId, guildId }).catch(() => null);
+      if (!inf) return interaction.update(errorCard('Infraction not found.'));
+      await Infraction.findByIdAndUpdate(infractionId, { appealStatus: action === 'accept' ? 'accepted' : 'rejected' });
+      await interaction.update(successCard(`Appeal ${action === 'accept' ? 'accepted' : 'rejected'}.`));
+    }
+    if (id.startsWith('event_interest:')) {
+      return require('../commands/event-request').handleEventInterest(interaction);
     }
   }
 }

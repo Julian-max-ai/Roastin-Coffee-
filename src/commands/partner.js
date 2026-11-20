@@ -2,10 +2,11 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ButtonBuilder, ButtonStyle, ActionRowBuilder } = require('discord.js');
 const Partner     = require('../models/Partner');
 const GuildConfig = require('../models/GuildConfig');
-const { successCard, errorCard, partnerCard, partnerListCards, infoCard, logCard } = require('../ui');
+const { successCard, errorCard, partnerCard, partnerListCards, infoCard, logCard, partnerInfoCard, card } = require('../ui');
 const { isRobloxLink, isDiscordInvite, ts } = require('../utils/format');
 const { paginate } = require('../utils/pagination');
-const { EMOJI, PAGE_SIZE } = require('../theme');
+const { isStaff } = require('../utils/permissions');
+const { EMOJI, PAGE_SIZE, COLORS } = require('../theme');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -64,9 +65,10 @@ module.exports = {
         new ButtonBuilder().setCustomId(`partner_confirm_remove:${partner._id}`).setLabel('Remove').setStyle(ButtonStyle.Danger),
         new ButtonBuilder().setCustomId('partner_cancel_remove').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
       );
-      const reply = errorCard(`Are you sure you want to remove **${name}**? This cannot be undone.`, true);
-      await interaction.editReply({ ...reply, components: [row] });
-      setTimeout(() => interaction.editReply({ components: [] }).catch(() => {}), 10000);
+      await interaction.editReply(card({ title: `${EMOJI.error} Confirm Removal`, description: `Are you sure you want to remove **${name}**? This cannot be undone.`, color: COLORS.warning, buttons: [
+        new ButtonBuilder().setCustomId(`partner_confirm_remove:${partner._id}`).setLabel('Remove').setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId('partner_cancel_remove').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
+      ], ephemeral: true }));
     }
 
     if (sub === 'edit') {
@@ -97,7 +99,7 @@ module.exports = {
     if (sub === 'list') {
       const all = await Partner.find({ guildId });
       if (!all.length) return interaction.editReply(errorCard('No partners found.'));
-      const { items, totalPages, page, row } = paginate(all, 0, PAGE_SIZE);
+      const { items, totalPages, page, row } = paginate(all, 0, PAGE_SIZE, 'partners');
       let desc = `**${all.length} active partner(s)**\n\n`;
       for (const pt of items) {
         desc += `**${pt.name}** — <@${pt.representativeId}>\n> Since ${ts(pt.addedAt, 'D')}\n\n`;
@@ -120,7 +122,7 @@ async function updatePartnerList(client, guildId) {
   const header   = cfg.partnerListText || `## ${EMOJI.partner} Our Partners\n\n`;
   const payloads = partners.length
     ? partnerListCards(partners, header)
-    : [infoCard(`${EMOJI.partner} Our Partners`, '*No active partners yet.*')];
+    : [infoCard(`${EMOJI.partner} Our Partners`, '*No active partners yet.*', false)];
 
   const oldIds = [...(cfg.partnerListMessageIds || []), cfg.partnerListMessageId].filter(Boolean);
   for (const id of oldIds) await channel.messages.delete(id).catch(() => {});
@@ -140,5 +142,23 @@ async function sendLog(client, guildId, title, description) {
   if (ch) await ch.send(logCard(title, description)).catch(() => {});
 }
 
+async function handlePartnerRemoveConfirm(interaction) {
+  const partnerId = interaction.customId.split(':')[1];
+  const { guildId, member } = interaction;
+
+  const cfg = await GuildConfig.findOne({ guildId });
+  if (!isStaff(member, cfg)) {
+    return interaction.reply(errorCard('Only staff can remove partners.'));
+  }
+
+  const partner = await Partner.findOneAndDelete({ _id: partnerId, guildId });
+  if (!partner) return interaction.update(errorCard('Partner not found.'));
+
+  await interaction.update(successCard(`**${partner.name}** has been removed.`));
+  await updatePartnerList(interaction.client, guildId);
+  await sendLog(interaction.client, guildId, `🗑️ Partner Removed`, `**${partner.name}** removed by <@${interaction.user.id}>`);
+}
+
 module.exports.updatePartnerList = updatePartnerList;
 module.exports.sendLog = sendLog;
+module.exports.handlePartnerRemoveConfirm = handlePartnerRemoveConfirm;

@@ -33,7 +33,7 @@ module.exports = {
     const sub     = interaction.options.getSubcommand();
 
     if (sub === 'remove') {
-      const infractions = await Infraction.find({ guildId, removed: false }).populate('partnerId').catch(() => []);
+      const infractions = await Infraction.find({ guildId, removed: false }).catch(() => []);
       const partners    = await Partner.find({ guildId });
       const partnerMap  = Object.fromEntries(partners.map(p => [p._id.toString(), p.name]));
       const choices = infractions
@@ -92,10 +92,7 @@ module.exports = {
         if (ch) await ch.send(card).catch(() => {});
       }
 
-      await require('./partner').sendLog(interaction.client, guildId,
-        `${EMOJI[type]} ${cap(type)} — ${partner.name}`,
-        `Issued by <@${interaction.user.id}>\n**Reason:** ${reason}`
-      );
+      await audit(interaction.guildId, interaction.user.id, 'infraction_add', 'partner', partner._id.toString(), { type, reason });
     }
 
     if (sub === 'list') {
@@ -105,7 +102,7 @@ module.exports = {
 
       const all    = await Infraction.find({ guildId, partnerId: partner._id.toString(), removed: false });
       const strikes = all.filter(i => i.type === 'strike').length;
-      const { items, totalPages, page, row } = paginate(all, 0, PAGE_SIZE);
+      const { items, totalPages, page, row } = paginate(all, 0, PAGE_SIZE, `infractions:${partner._id}`);
       const res = infractionListCard(partner, items, page, totalPages, strikes, STRIKE_LIMIT);
       if (row) res.components = [...res.components, row];
       await interaction.editReply(res);
