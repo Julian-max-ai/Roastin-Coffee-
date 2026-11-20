@@ -21,11 +21,7 @@ function sep(divider = true) {
 
 /** Wraps components in a Container and returns a sendable payload */
 function payload(components, color = COLORS.primary, ephemeral = false) {
-  const container = new ContainerBuilder().setAccentColor(color);
-  for (const c of components) container.addComponent(c);
-  let flags = MessageFlags.IsComponentsV2;
-  if (ephemeral) flags |= MessageFlags.Ephemeral;
-  return { components: [container], flags };
+  return buildContainer(components, color, ephemeral);
 }
 
 // ─── generic cards ──────────────────────────────────────────────────────────
@@ -88,35 +84,44 @@ function partnerCard(partner, ephemeral = false) {
 }
 
 function partnerListCards(partners, headerText) {
-  // Split into multiple payloads if needed (max 35 components per message)
   const messages = [];
-  let parts = [new TextDisplayBuilder().setContent(headerText), sep()];
+  let parts = [new TextDisplayBuilder().setContent(headerText), new SeparatorBuilder().setDivider(true).setSpacing(1)];
   let count = 2;
 
   for (const p of partners) {
-    const block = [
-      new TextDisplayBuilder().setContent(
-        `**${p.name}**\n` +
-        `${EMOJI.user} <@${p.representativeId}>`
-      ),
-      new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setLabel('Roblox').setURL(p.robloxLink).setStyle(ButtonStyle.Link),
-        new ButtonBuilder().setLabel('Discord').setURL(p.discordInvite).setStyle(ButtonStyle.Link),
-      ),
-      sep(false),
-    ];
-    if (count + block.length + 2 > 35) {
-      parts.push(footer());
-      messages.push(payload(parts, COLORS.primary));
+    const textBlock = new TextDisplayBuilder().setContent(`**${p.name}**\n${EMOJI.user} <@${p.representativeId}>`);
+    const rowBlock  = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setLabel('Roblox').setURL(p.robloxLink).setStyle(ButtonStyle.Link),
+      new ButtonBuilder().setLabel('Discord').setURL(p.discordInvite).setStyle(ButtonStyle.Link),
+    );
+    const sepBlock = new SeparatorBuilder().setDivider(false).setSpacing(1);
+
+    if (count + 3 + 2 > 35) {
+      parts.push(new SeparatorBuilder().setDivider(true).setSpacing(1), new TextDisplayBuilder().setContent(`-# ${EMOJI.coffee} ${BRAND.name} · ${BRAND.sub}`));
+      messages.push(buildContainer(parts));
       parts = [];
       count = 0;
     }
-    parts.push(...block);
-    count += block.length;
+    parts.push(textBlock, rowBlock, sepBlock);
+    count += 3;
   }
-  parts.push(footer());
-  messages.push(payload(parts, COLORS.primary));
+  parts.push(new SeparatorBuilder().setDivider(true).setSpacing(1), new TextDisplayBuilder().setContent(`-# ${EMOJI.coffee} ${BRAND.name} · ${BRAND.sub} · ${ts(new Date(), 'R')}`));
+  messages.push(buildContainer(parts));
   return messages;
+}
+
+function buildContainer(parts, color = COLORS.primary, ephemeral = false) {
+  const container = new ContainerBuilder().setAccentColor(color);
+  for (const c of parts) {
+    if (c instanceof TextDisplayBuilder)   container.addTextDisplayComponents(c);
+    else if (c instanceof SeparatorBuilder) container.addSeparatorComponents(c);
+    else if (c instanceof SectionBuilder)   container.addSectionComponents(c);
+    else if (c instanceof ActionRowBuilder) container.addActionRowComponents(c);
+    else if (c instanceof MediaGalleryBuilder) container.addMediaGalleryComponents(c);
+  }
+  let flags = MessageFlags.IsComponentsV2;
+  if (ephemeral) flags |= MessageFlags.Ephemeral;
+  return { components: [container], flags };
 }
 
 // ─── infraction cards ────────────────────────────────────────────────────────
