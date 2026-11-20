@@ -52,35 +52,21 @@ async function route(interaction, client) {
     if (id.startsWith('event_deny_reason:')) {
       return require('../commands/event-request').handleEventDenyModal(interaction);
     }
-    if (id.startsWith('cfg_text_modal:') || id === 'cfg_reviewLink_modal') {
+    if (id.startsWith('cfg_text_modal:') || id === 'cfg_reviewLink_modal' || id === 'cfg_reviewQuestions_modal' || id.startsWith('cfg_auto_value:')) {
       return require('../commands/config').handleConfigInteraction(interaction);
     }
+    if (id.startsWith('ticket_rate_feedback:')) {
+      return require('../commands/ticket-panel').handleTicketRateFeedbackModal(interaction);
+    }
     if (id.startsWith('infraction_appeal_submit:')) {
-      const infractionId = id.split(':')[1];
-      const reason = interaction.fields.getTextInputValue('reason');
-      const { guildId } = interaction;
-      const Infraction = require('../models/Infraction');
-      const Partner = require('../models/Partner');
-      const inf = await Infraction.findOne({ _id: infractionId, guildId }).catch(() => null);
-      if (!inf) return interaction.reply(errorCard('Infraction not found.'));
-      await Infraction.findByIdAndUpdate(infractionId, { appealStatus: 'pending', appealReason: reason });
-      const partner = await Partner.findOne({ _id: inf.partnerId, guildId }).catch(() => null);
-      if (partner) {
-        const { infractionAppealCard } = require('../ui');
-        const { logChannel } = await require('../models/GuildConfig').findOne({ guildId }) || {};
-        if (logChannel) {
-          const ch = await interaction.client.channels.fetch(logChannel).catch(() => null);
-          if (ch) await ch.send(infractionAppealCard(inf, partner, reason, interaction.user.id)).catch(() => {});
-        }
-      }
-      return interaction.reply(successCard('Your appeal has been submitted.'));
+      return require('../commands/infraction').handleInfractionAppealSubmit(interaction);
     }
     return;
   }
 
   // ── Config interactions (selects + buttons) ─────────────────────────────────
   const { handleConfigInteraction } = require('../commands/config');
-  const cfgIds = ['cfg_category', 'cfg_ch_pick', 'cfg_reviewMode', 'cfg_text_pick'];
+  const cfgIds = ['cfg_category', 'cfg_ch_pick', 'cfg_reviewMode', 'cfg_text_pick', 'cfg_auto_pick'];
   const cfgChannelIds = id => id?.startsWith('cfg_channel:') || id === 'cfg_ticketCategory';
   const cfgRoleIds    = ['cfg_prStaffRoles', 'cfg_partnerRepRoles'];
   const cfgButtonIds  = ['cfg_back', 'cfg_setReviewLink', 'cfg_setReviewQuestions'];
@@ -173,46 +159,23 @@ async function route(interaction, client) {
     }
     if (id === 'ticket_release') return require('../commands/ticket-panel').handleTicketRelease(interaction);
     if (id.startsWith('ticket_rate:')) return require('../commands/ticket-panel').handleTicketRate(interaction);
-    if (id.startsWith('ticket_rate_feedback:')) return require('../commands/ticket-panel').handleTicketRateFeedbackModal(interaction);
     if (id.startsWith('infraction_appeal:')) {
-      // show appeal modal
-      const infractionId = id.split(':')[1];
-      const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
-      const modal = new ModalBuilder().setCustomId(`infraction_appeal_submit:${infractionId}`).setTitle('Appeal Infraction');
-      modal.addComponents(new ActionRowBuilder().addComponents(
-        new TextInputBuilder().setCustomId('reason').setLabel('Why should this infraction be removed?').setStyle(TextInputStyle.Paragraph).setRequired(true)
-      ));
-      return interaction.showModal(modal);
+      return require('../commands/infraction').handleInfractionAppeal(interaction);
     }
     if (id.startsWith('infraction_terminate:') || id.startsWith('infraction_dismiss:')) {
-      const action = id.startsWith('infraction_terminate:') ? 'terminate' : 'dismiss';
-      const infractionId = id.split(':')[1];
-      const { member, guildId } = interaction;
-      const cfg = await require('../models/GuildConfig').findOne({ guildId });
-      const { isStaff } = require('../utils/permissions');
-      const { errorCard, successCard } = require('../ui');
-      if (!isStaff(member, cfg)) return interaction.reply(errorCard('Only staff can decide infractions.'));
-      const Infraction = require('../models/Infraction');
-      const inf = await Infraction.findOne({ _id: infractionId, guildId }).catch(() => null);
-      if (!inf) return interaction.update(errorCard('Infraction not found.'));
-      const update = action === 'terminate' ? { type: 'termination' } : { removed: true };
-      await Infraction.findByIdAndUpdate(infractionId, update);
-      await interaction.update(successCard(`Infraction ${action === 'terminate' ? 'escalated to termination' : 'dismissed'}.`));
+      return require('../commands/infraction').handleInfractionEscalationDecision(interaction);
     }
     if (id.startsWith('appeal_accept:') || id.startsWith('appeal_reject:')) {
-      const action = id.startsWith('appeal_accept:') ? 'accept' : 'reject';
-      const infractionId = id.split(':')[1];
-      const { member, guildId } = interaction;
-      const cfg = await require('../models/GuildConfig').findOne({ guildId });
-      const { isStaff } = require('../utils/permissions');
-      const { errorCard, successCard } = require('../ui');
-      if (!isStaff(member, cfg)) return interaction.reply(errorCard('Only staff can decide appeals.'));
-      const Infraction = require('../models/Infraction');
-      const inf = await Infraction.findOne({ _id: infractionId, guildId }).catch(() => null);
-      if (!inf) return interaction.update(errorCard('Infraction not found.'));
-      await Infraction.findByIdAndUpdate(infractionId, { appealStatus: action === 'accept' ? 'accepted' : 'rejected' });
-      await interaction.update(successCard(`Appeal ${action === 'accept' ? 'accepted' : 'rejected'}.`));
+      return require('../commands/infraction').handleAppealDecision(interaction);
     }
+    if (id.startsWith('ticket_open:'))          return require('../commands/ticket-panel').handleTicketOpen(interaction);
+    if (id === 'ticket_close')                  return require('../commands/ticket-panel').handleTicketClose(interaction);
+    if (id.startsWith('ticket_confirm_close:')) return require('../commands/ticket-panel').handleTicketConfirmClose(interaction);
+    if (id === 'ticket_cancel_close')           return require('../commands/ticket-panel').handleTicketCancelClose(interaction);
+    if (id.startsWith('ticket_keep_open:'))     return require('../commands/ticket-panel').handleTicketKeepOpen(interaction);
+    if (id.startsWith('ticket_agree_close:'))   return require('../commands/ticket-panel').handleTicketAgreeClose(interaction);
+    if (id === 'ticket_claim')                  return require('../commands/ticket-panel').handleTicketClaim(interaction);
+    if (id === 'ticket_release') return require('../commands/ticket-panel').handleTicketRelease(interaction);
     if (id.startsWith('event_interest:')) {
       return require('../commands/event-request').handleEventInterest(interaction);
     }

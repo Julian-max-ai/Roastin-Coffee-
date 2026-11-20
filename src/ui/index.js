@@ -157,7 +157,7 @@ function partnerListCards(partners, headerText) {
 
 // ─── infraction cards ────────────────────────────────────────────────────────
 
-function infractionCard(infraction, partner, issuedBy, activeStrikes, strikeLimit, dmFailed = false) {
+function infractionCard(infraction, partner, issuedBy, activeStrikes, strikeLimit, dmFailed = false, forRepresentative = false) {
   const { INFRACTION_COLORS } = require('../theme');
   const color = INFRACTION_COLORS[infraction.type];
   const typeLabel = cap(infraction.type);
@@ -181,15 +181,18 @@ function infractionCard(infraction, partner, issuedBy, activeStrikes, strikeLimi
   }
   if (dmFailed) desc += `\n\n-# DM could not be delivered to the representative.`;
 
-  const buttons = [
-    new ButtonBuilder()
-      .setCustomId(`infraction_appeal:${infraction._id}`)
-      .setLabel('Appeal')
-      .setStyle(ButtonStyle.Secondary)
-      .setEmoji(EMOJI.appeal),
-  ];
+  // C4: Appeal button only in DM variant
+  const buttons = forRepresentative
+    ? [
+      new ButtonBuilder()
+        .setCustomId(`infraction_appeal:${infraction._id}`)
+        .setLabel('Appeal')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji(EMOJI.appeal),
+    ]
+    : [];
 
-  return card({ title: `${emoji} ${typeLabel} Issued`, description: desc, color, buttons: dmFailed ? [] : buttons, ephemeral: false });
+  return card({ title: `${emoji} ${typeLabel} Issued`, description: desc, color, buttons, ephemeral: false });
 }
 
 function infractionListCard(partner, infractions, page, totalPages, strikeCount, strikeLimit, filter = 'active') {
@@ -363,6 +366,23 @@ function eventAnnouncementCardWithCount(req, count) {
   return card({ title: `${EMOJI.event} ${req.type} — ${req.title}`, description: desc, color: COLORS.success, buttons, ephemeral: false });
 }
 
+function eventDecisionCard(req, status, decidedBy, reason = null) {
+  const statusLabel = status === 'approved' ? 'Approved' : 'Denied';
+  const statusColor = status === 'approved' ? COLORS.success : COLORS.error;
+  const statusEmoji = status === 'approved' ? EMOJI.success : EMOJI.error;
+
+  let desc =
+    `**Type:** ${req.type}\n` +
+    `**Date:** ${req.date}\n`;
+  if (req.startsAt) desc += `**Starts:** ${ts(req.startsAt, 'F')} (${ts(req.startsAt, 'R')})\n`;
+  desc += `\n${req.description}\n\n`;
+  desc += `**Submitted by:** <@${req.submitterId}>\n`;
+  desc += `**${statusLabel} by:** <@${decidedBy}>\n`;
+  if (reason) desc += `**Reason:** ${reason}\n`;
+
+  return card({ title: `${EMOJI.event} Event ${statusLabel} — ${req.title}`, description: desc, color: statusColor, ephemeral: false });
+}
+
 // ─── config panel ────────────────────────────────────────────────────────────
 
 function configPanel(cfg, rows = []) {
@@ -394,14 +414,15 @@ function configPanel(cfg, rows = []) {
   return payload;
 }
 
-function automationPanel(cfg) {
+function automationPanel(cfg, rows = []) {
   const a = cfg?.automation || {};
   const on  = (v) => v ? '✅ On' : '❌ Off';
   const val = (v, unit = '') => `\`${v}${unit}\``;
 
   let desc =
     `**Ticket Inactivity Reminder:** ${on(a.ticketInactivityEnabled)} — after ${val(a.ticketInactivityHours ?? 24, 'h')}\n` +
-    `**Ticket Auto-Close:** ${on(a.ticketInactivityEnabled)} — after ${val(a.ticketAutoCloseHours ?? 48, 'h')}\n` +
+    `**Ticket Auto-Close:** ${on(a.ticketAutoCloseEnabled)} — after ${val(a.ticketAutoCloseHours ?? 48, 'h')}\n` +
+    `**Close Request Timeout:** ${val(a.ticketCloseRequestHours ?? 24, 'h')}\n` +
     `**Max Open Tickets/User:** ${val(a.maxOpenTicketsPerUser ?? 3)}\n` +
     `**Ticket Rating:** ${on(a.ticketRatingEnabled)}\n\n` +
     `**Infraction Expiry (Warning):** ${val(a.infractionExpiryWarning ?? 90, 'd')} *(0 = never)*\n` +
@@ -414,7 +435,11 @@ function automationPanel(cfg) {
     `**Auto-Assign Rep Roles:** ${on(a.autoAssignRepRoles)}\n` +
     `**Weekly Event Digest:** ${on(a.weeklyEventDigest)}`;
 
-  return card({ title: `${EMOJI.config} Automation Settings`, description: desc, color: COLORS.dark, ephemeral: true });
+  const payload = card({ title: `${EMOJI.config} Automation Settings`, description: desc, color: COLORS.dark, ephemeral: true });
+  if (rows.length) {
+    payload.components = [...payload.components, ...rows];
+  }
+  return payload;
 }
 
 // ─── log card ────────────────────────────────────────────────────────────────
@@ -471,7 +496,7 @@ module.exports = {
   infractionCard, infractionListCard, infractionEscalationCard, infractionAppealCard,
   ticketWelcomeCard, ticketRatingCard,
   reviewCard, reviewResultCard, reviewStatusCard,
-  eventRequestCard, eventAnnouncementCard, eventAnnouncementCardWithCount,
+  eventRequestCard, eventAnnouncementCard, eventAnnouncementCardWithCount, eventDecisionCard,
   configPanel, automationPanel, logCard,
   statsCard, doctorCard, auditCard,
 };

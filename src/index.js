@@ -9,7 +9,7 @@ const fs   = require('fs');
 const path = require('path');
 const cron = require('node-cron');
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 client.commands = new Collection();
 
 // Load commands
@@ -45,3 +45,9 @@ mongoose.connect(process.env.MONGODB_URI)
     console.error('MongoDB connection error:', err);
     process.exit(1);
   });
+
+client.once('ready', async () => {
+  console.log(`Logged in as ${client.user.tag}`);
+  const { startScheduler } = require('./scheduler');
+  startScheduler(client);
+});

@@ -25,7 +25,9 @@ const GuildConfigSchema = new Schema({
   automation: {
     ticketInactivityEnabled:  { type: Boolean, default: true },
     ticketInactivityHours:    { type: Number, default: 24 },
+    ticketAutoCloseEnabled:   { type: Boolean, default: true },
     ticketAutoCloseHours:     { type: Number, default: 48 },
+    ticketCloseRequestHours:  { type: Number, default: 24 },
     maxOpenTicketsPerUser:    { type: Number, default: 3 },
     ticketRatingEnabled:      { type: Boolean, default: true },
     infractionExpiryWarning:  { type: Number, default: 90 },  // days, 0=never

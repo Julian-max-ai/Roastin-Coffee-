@@ -109,8 +109,131 @@ async function handleConfigInteraction(interaction) {
 
     if (cat === 'automation') {
       const cfg = await GuildConfig.findOne({ guildId });
-      return interaction.update(automationPanel(cfg));
+      return interaction.update(automationPanel(cfg, [
+        new ActionRowBuilder().addComponents(
+          new StringSelectMenuBuilder().setCustomId('cfg_auto_pick').setPlaceholder('Which setting to change?').addOptions([
+            { label: 'Ticket Inactivity Reminder', value: 'ticketInactivityEnabled', description: 'Toggle on/off' },
+            { label: 'Ticket Inactivity Hours', value: 'ticketInactivityHours', description: 'Set hours (0-720)' },
+            { label: 'Ticket Auto-Close', value: 'ticketAutoCloseEnabled', description: 'Toggle on/off' },
+            { label: 'Ticket Auto-Close Hours', value: 'ticketAutoCloseHours', description: 'Set hours (1-720)' },
+            { label: 'Close Request Timeout', value: 'ticketCloseRequestHours', description: 'Set hours (1-720)' },
+            { label: 'Max Open Tickets/User', value: 'maxOpenTicketsPerUser', description: 'Set count (1-10)' },
+            { label: 'Ticket Rating', value: 'ticketRatingEnabled', description: 'Toggle on/off' },
+            { label: 'Infraction Expiry (Warning)', value: 'infractionExpiryWarning', description: 'Set days (0=never)' },
+            { label: 'Infraction Expiry (Strike)', value: 'infractionExpiryStrike', description: 'Set days (0=never)' },
+            { label: 'Review Reminder Days', value: 'reviewReminderDays', description: 'Set days (0=never)' },
+            { label: 'Review Overdue Days', value: 'reviewOverdueDays', description: 'Set days (0=never)' },
+            { label: 'Event Reminder Hours', value: 'eventReminderHours', description: 'Set hours (0=never)' },
+            { label: 'Anniversary Announcements', value: 'anniversaryAnnouncements', description: 'Toggle on/off' },
+            { label: 'Invite Health Check', value: 'inviteHealthCheck', description: 'Toggle on/off' },
+            { label: 'Auto-Assign Rep Roles', value: 'autoAssignRepRoles', description: 'Toggle on/off' },
+            { label: 'Weekly Event Digest', value: 'weeklyEventDigest', description: 'Toggle on/off' },
+          ])
+        ),
+        new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('cfg_back').setLabel('← Back').setStyle(ButtonStyle.Secondary)
+        ),
+      ]));
     }
+  }
+
+  if (interaction.isStringSelectMenu() && interaction.customId === 'cfg_auto_pick') {
+    const key = interaction.values[0];
+    const cfg = await GuildConfig.findOne({ guildId });
+    const a = cfg?.automation || {};
+    const isBool = ['ticketInactivityEnabled','ticketAutoCloseEnabled','ticketRatingEnabled','anniversaryAnnouncements','inviteHealthCheck','autoAssignRepRoles','weeklyEventDigest'].includes(key);
+    const current = a[key];
+
+    if (isBool) {
+      const newVal = !current;
+      await GuildConfig.findOneAndUpdate({ guildId }, { [`automation.${key}`]: newVal }, { upsert: true });
+      const updated = await GuildConfig.findOne({ guildId });
+      return interaction.update(automationPanel(updated, [
+        new ActionRowBuilder().addComponents(
+          new StringSelectMenuBuilder().setCustomId('cfg_auto_pick').setPlaceholder('Which setting to change?').addOptions([
+            { label: 'Ticket Inactivity Reminder', value: 'ticketInactivityEnabled', description: 'Toggle on/off' },
+            { label: 'Ticket Inactivity Hours', value: 'ticketInactivityHours', description: 'Set hours (0-720)' },
+            { label: 'Ticket Auto-Close', value: 'ticketAutoCloseEnabled', description: 'Toggle on/off' },
+            { label: 'Ticket Auto-Close Hours', value: 'ticketAutoCloseHours', description: 'Set hours (1-720)' },
+            { label: 'Close Request Timeout', value: 'ticketCloseRequestHours', description: 'Set hours (1-720)' },
+            { label: 'Max Open Tickets/User', value: 'maxOpenTicketsPerUser', description: 'Set count (1-10)' },
+            { label: 'Ticket Rating', value: 'ticketRatingEnabled', description: 'Toggle on/off' },
+            { label: 'Infraction Expiry (Warning)', value: 'infractionExpiryWarning', description: 'Set days (0=never)' },
+            { label: 'Infraction Expiry (Strike)', value: 'infractionExpiryStrike', description: 'Set days (0=never)' },
+            { label: 'Review Reminder Days', value: 'reviewReminderDays', description: 'Set days (0=never)' },
+            { label: 'Review Overdue Days', value: 'reviewOverdueDays', description: 'Set days (0=never)' },
+            { label: 'Event Reminder Hours', value: 'eventReminderHours', description: 'Set hours (0=never)' },
+            { label: 'Anniversary Announcements', value: 'anniversaryAnnouncements', description: 'Toggle on/off' },
+            { label: 'Invite Health Check', value: 'inviteHealthCheck', description: 'Toggle on/off' },
+            { label: 'Auto-Assign Rep Roles', value: 'autoAssignRepRoles', description: 'Toggle on/off' },
+            { label: 'Weekly Event Digest', value: 'weeklyEventDigest', description: 'Toggle on/off' },
+          ])
+        ),
+        new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('cfg_back').setLabel('← Back').setStyle(ButtonStyle.Secondary)
+        ),
+      ]));
+    } else {
+      const modal = new ModalBuilder().setCustomId(`cfg_auto_value:${key}`).setTitle(`Set ${key}`);
+      const limits = {
+        ticketInactivityHours: { label: 'Hours (0-720)', placeholder: 'e.g. 24' },
+        ticketAutoCloseHours: { label: 'Hours (1-720)', placeholder: 'e.g. 48' },
+        ticketCloseRequestHours: { label: 'Hours (1-720)', placeholder: 'e.g. 24' },
+        maxOpenTicketsPerUser: { label: 'Count (1-10)', placeholder: 'e.g. 3' },
+        infractionExpiryWarning: { label: 'Days (0=never)', placeholder: 'e.g. 90' },
+        infractionExpiryStrike: { label: 'Days (0=never)', placeholder: 'e.g. 180' },
+        reviewReminderDays: { label: 'Days (0=never)', placeholder: 'e.g. 7' },
+        reviewOverdueDays: { label: 'Days (0=never)', placeholder: 'e.g. 14' },
+        eventReminderHours: { label: 'Hours (0=never)', placeholder: 'e.g. 1' },
+      };
+      modal.addComponents(new ActionRowBuilder().addComponents(
+        new TextInputBuilder().setCustomId('auto_value').setLabel(limits[key]?.label || 'Value').setStyle(TextInputStyle.Short).setValue(String(current ?? '')).setPlaceholder(limits[key]?.placeholder || '').setRequired(true)
+      ));
+      return interaction.showModal(modal);
+    }
+  }
+
+  if (interaction.isModalSubmit() && interaction.customId.startsWith('cfg_auto_value:')) {
+    const key = interaction.customId.replace('cfg_auto_value:', '');
+    const raw = interaction.fields.getTextInputValue('auto_value');
+    const num = parseInt(raw, 10);
+    if (isNaN(num) || num < 0) return interaction.reply(errorCard('Please enter a valid non-negative number.'));
+
+    const maxMap = {
+      ticketInactivityHours: 720, ticketAutoCloseHours: 720, ticketCloseRequestHours: 720,
+      maxOpenTicketsPerUser: 10, infractionExpiryWarning: 3650, infractionExpiryStrike: 3650,
+      reviewReminderDays: 365, reviewOverdueDays: 365, eventReminderHours: 8760,
+    };
+    const max = maxMap[key] ?? 999999;
+    if (num > max) return interaction.reply(errorCard(`Value must be ≤ ${max}.`));
+
+    await GuildConfig.findOneAndUpdate({ guildId }, { [`automation.${key}`]: num }, { upsert: true });
+    const updated = await GuildConfig.findOne({ guildId });
+    return interaction.update(automationPanel(updated, [
+      new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder().setCustomId('cfg_auto_pick').setPlaceholder('Which setting to change?').addOptions([
+          { label: 'Ticket Inactivity Reminder', value: 'ticketInactivityEnabled', description: 'Toggle on/off' },
+          { label: 'Ticket Inactivity Hours', value: 'ticketInactivityHours', description: 'Set hours (0-720)' },
+          { label: 'Ticket Auto-Close', value: 'ticketAutoCloseEnabled', description: 'Toggle on/off' },
+          { label: 'Ticket Auto-Close Hours', value: 'ticketAutoCloseHours', description: 'Set hours (1-720)' },
+          { label: 'Close Request Timeout', value: 'ticketCloseRequestHours', description: 'Set hours (1-720)' },
+          { label: 'Max Open Tickets/User', value: 'maxOpenTicketsPerUser', description: 'Set count (1-10)' },
+          { label: 'Ticket Rating', value: 'ticketRatingEnabled', description: 'Toggle on/off' },
+          { label: 'Infraction Expiry (Warning)', value: 'infractionExpiryWarning', description: 'Set days (0=never)' },
+          { label: 'Infraction Expiry (Strike)', value: 'infractionExpiryStrike', description: 'Set days (0=never)' },
+          { label: 'Review Reminder Days', value: 'reviewReminderDays', description: 'Set days (0=never)' },
+          { label: 'Review Overdue Days', value: 'reviewOverdueDays', description: 'Set days (0=never)' },
+          { label: 'Event Reminder Hours', value: 'eventReminderHours', description: 'Set hours (0=never)' },
+          { label: 'Anniversary Announcements', value: 'anniversaryAnnouncements', description: 'Toggle on/off' },
+          { label: 'Invite Health Check', value: 'inviteHealthCheck', description: 'Toggle on/off' },
+          { label: 'Auto-Assign Rep Roles', value: 'autoAssignRepRoles', description: 'Toggle on/off' },
+          { label: 'Weekly Event Digest', value: 'weeklyEventDigest', description: 'Toggle on/off' },
+        ])
+      ),
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('cfg_back').setLabel('← Back').setStyle(ButtonStyle.Secondary)
+      ),
+    ]));
   }
 
   if (interaction.isStringSelectMenu() && interaction.customId === 'cfg_ch_pick') {
