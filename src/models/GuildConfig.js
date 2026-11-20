@@ -10,6 +10,11 @@ const GuildConfigSchema = new Schema({
   partnerListChannel: { type: String, default: null },
   ticketCategory: { type: String, default: null },
 
+  // Webhook URLs (for Components V2 / dweeb integration)
+  announcementWebhook: { type: String, default: null },
+  reviewWebhook: { type: String, default: null },
+  partnerListWebhook: { type: String, default: null },
+
   // Roles (multiple allowed)
   prStaffRoles: { type: [String], default: [] },
   partnerRepRoles: { type: [String], default: [] },

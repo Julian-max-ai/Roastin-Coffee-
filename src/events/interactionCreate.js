@@ -60,5 +60,12 @@ module.exports = {
       const { handleTicketOpen } = require('../commands/ticket-panel');
       return handleTicketOpen(interaction, interaction.values[0]);
     }
+
+    // Dweeb modal
+    if (interaction.isModalSubmit() && interaction.customId.startsWith('dweeb_send:')) {
+      const { handleDweebModal } = require('../commands/dweeb');
+      return handleDweebModal(interaction);
+    }
   },
 };
+
