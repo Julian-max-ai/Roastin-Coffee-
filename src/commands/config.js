@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ChannelType } = require('discord.js');
 const GuildConfig = require('../models/GuildConfig');
 
 module.exports = {
@@ -7,32 +7,42 @@ module.exports = {
     .setDescription('Configure the PR bot settings for this server.')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addSubcommand(sub => sub
-      .setName('set')
-      .setDescription('Set a configuration value.')
-      .addStringOption(opt => opt
-        .setName('key')
-        .setDescription('Setting to configure')
-        .setRequired(true)
-        .addChoices(
-          { name: 'Announcement Channel', value: 'announcementChannel' },
-          { name: 'Monthly Review Channel', value: 'reviewChannel' },
-          { name: 'Log Channel', value: 'logChannel' },
-          { name: 'Ticket Category', value: 'ticketCategory' },
-          { name: 'PR Staff Role', value: 'prStaffRole' },
-          { name: 'Partner Representative Role', value: 'partnerRepRole' },
-        ))
-      .addStringOption(opt => opt
-        .setName('value')
-        .setDescription('Channel ID, Category ID, or Role ID')
-        .setRequired(true)))
+      .setName('announcement-channel')
+      .setDescription('Set the announcement channel.')
+      .addChannelOption(o => o.setName('channel').setDescription('Announcement channel').setRequired(true)
+        .addChannelTypes(ChannelType.GuildText)))
+    .addSubcommand(sub => sub
+      .setName('review-channel')
+      .setDescription('Set the monthly review channel.')
+      .addChannelOption(o => o.setName('channel').setDescription('Review channel').setRequired(true)
+        .addChannelTypes(ChannelType.GuildText)))
+    .addSubcommand(sub => sub
+      .setName('log-channel')
+      .setDescription('Set the log channel.')
+      .addChannelOption(o => o.setName('channel').setDescription('Log channel').setRequired(true)
+        .addChannelTypes(ChannelType.GuildText)))
+    .addSubcommand(sub => sub
+      .setName('ticket-category')
+      .setDescription('Set the ticket category.')
+      .addChannelOption(o => o.setName('category').setDescription('Ticket category').setRequired(true)
+        .addChannelTypes(ChannelType.GuildCategory)))
+    .addSubcommand(sub => sub
+      .setName('pr-staff-role')
+      .setDescription('Set the PR staff role.')
+      .addRoleOption(o => o.setName('role').setDescription('PR Staff role').setRequired(true)))
+    .addSubcommand(sub => sub
+      .setName('partner-rep-role')
+      .setDescription('Set the partner representative role.')
+      .addRoleOption(o => o.setName('role').setDescription('Partner Representative role').setRequired(true)))
     .addSubcommand(sub => sub
       .setName('view')
       .setDescription('View current configuration.')),
 
   async execute(interaction) {
     const { guildId } = interaction;
+    const sub = interaction.options.getSubcommand();
 
-    if (interaction.options.getSubcommand() === 'view') {
+    if (sub === 'view') {
       const cfg = await GuildConfig.findOne({ guildId }) || {};
       const embed = new EmbedBuilder()
         .setColor(0x6F4E37)
@@ -51,29 +61,30 @@ module.exports = {
       return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    // set subcommand
-    const key = interaction.options.getString('key');
-    const value = interaction.options.getString('value');
-
-    await GuildConfig.findOneAndUpdate(
-      { guildId },
-      { [key]: value },
-      { upsert: true, new: true }
-    );
+    const updates = {
+      'announcement-channel': () => ({ announcementChannel: interaction.options.getChannel('channel').id }),
+      'review-channel':       () => ({ reviewChannel: interaction.options.getChannel('channel').id }),
+      'log-channel':          () => ({ logChannel: interaction.options.getChannel('channel').id }),
+      'ticket-category':      () => ({ ticketCategory: interaction.options.getChannel('category').id }),
+      'pr-staff-role':        () => ({ prStaffRole: interaction.options.getRole('role').id }),
+      'partner-rep-role':     () => ({ partnerRepRole: interaction.options.getRole('role').id }),
+    };
 
     const labels = {
-      announcementChannel: 'Announcement Channel',
-      reviewChannel: 'Monthly Review Channel',
-      logChannel: 'Log Channel',
-      ticketCategory: 'Ticket Category',
-      prStaffRole: 'PR Staff Role',
-      partnerRepRole: 'Partner Representative Role',
+      'announcement-channel': 'Announcement Channel',
+      'review-channel':       'Monthly Review Channel',
+      'log-channel':          'Log Channel',
+      'ticket-category':      'Ticket Category',
+      'pr-staff-role':        'PR Staff Role',
+      'partner-rep-role':     'Partner Representative Role',
     };
+
+    await GuildConfig.findOneAndUpdate({ guildId }, updates[sub](), { upsert: true, new: true });
 
     const embed = new EmbedBuilder()
       .setColor(0x57F287)
       .setTitle('✅ Configuration Updated')
-      .setDescription(`**${labels[key]}** has been set to \`${value}\`.`)
+      .setDescription(`**${labels[sub]}** has been updated.`)
       .setTimestamp();
 
     return interaction.reply({ embeds: [embed], ephemeral: true });
