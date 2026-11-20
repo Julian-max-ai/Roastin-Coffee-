@@ -116,12 +116,12 @@ module.exports.handleDweebModal = handleDweebModal;
 
 function cleanPayload(payload) {
   if (!payload?.components) return payload;
-  payload.components = payload.components.map(c => cleanComponent(c));
+  payload.components = payload.components.map(c => cleanComponent(c)).filter(Boolean);
   return payload;
 }
 
 function cleanComponent(c) {
-  if (!c) return c;
+  if (!c) return null;
   // Remove media components (type 12) with empty or missing URL
   if (c.type === 12) {
     c.items = (c.items || []).filter(item => item?.media?.url && item.media.url.trim() !== '');
@@ -130,6 +130,8 @@ function cleanComponent(c) {
   // Recurse into nested components
   if (Array.isArray(c.components)) {
     c.components = c.components.map(cleanComponent).filter(Boolean);
+    // Remove container if it only had empty media and is now empty
+    if (c.type === 17 && !c.components.length) return null;
   }
   return c;
 }
