@@ -97,6 +97,8 @@ async function handleDweebModal(interaction) {
   let payload;
   try {
     payload = JSON.parse(interaction.fields.getTextInputValue('json_payload'));
+    // Remove media components with empty URLs (dweeb placeholder images)
+    payload = cleanPayload(payload);
   } catch {
     return interaction.reply({ content: '❌ Invalid JSON. Please copy the exact JSON from dweeb.faizo.net.', ephemeral: true });
   }
@@ -111,3 +113,23 @@ async function handleDweebModal(interaction) {
 }
 
 module.exports.handleDweebModal = handleDweebModal;
+
+function cleanPayload(payload) {
+  if (!payload?.components) return payload;
+  payload.components = payload.components.map(c => cleanComponent(c));
+  return payload;
+}
+
+function cleanComponent(c) {
+  if (!c) return c;
+  // Remove media components (type 12) with empty or missing URL
+  if (c.type === 12) {
+    c.items = (c.items || []).filter(item => item?.media?.url && item.media.url.trim() !== '');
+    if (!c.items.length) return null;
+  }
+  // Recurse into nested components
+  if (Array.isArray(c.components)) {
+    c.components = c.components.map(cleanComponent).filter(Boolean);
+  }
+  return c;
+}
