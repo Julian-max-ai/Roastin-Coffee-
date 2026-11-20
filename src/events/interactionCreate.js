@@ -62,7 +62,7 @@ module.exports = {
     }
 
     // Dweeb modal
-    if (interaction.isModalSubmit() && interaction.customId.startsWith('dweeb_send:')) {
+    if (interaction.isModalSubmit() && (interaction.customId.startsWith('dweeb_send:') || interaction.customId.startsWith('dweeb_edit:'))) {
       const { handleDweebModal } = require('../commands/dweeb');
       return handleDweebModal(interaction);
     }

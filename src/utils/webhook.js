@@ -1,23 +1,8 @@
-const { WebhookClient } = require('discord.js');
 const https = require('https');
-
-/**
- * Sends a Components V2 message via webhook using raw HTTP (flags must be passed directly).
- */
-async function sendComponentsV2(webhookUrl, payload) {
-  return rawWebhookRequest(webhookUrl, 'POST', payload);
-}
-
-async function editComponentsV2(webhookUrl, messageId, payload) {
-  return rawWebhookRequest(`${webhookUrl}/messages/${messageId}`, 'PATCH', payload);
-}
 
 function rawWebhookRequest(url, method, payload) {
   return new Promise((resolve, reject) => {
-    // Strip flags from payload, send only components
-    const { flags, ...rest } = payload;
-    const body = JSON.stringify({ ...rest, flags: 32768 });
-    console.log('Sending payload:', body.slice(0, 500));
+    const body = JSON.stringify(payload);
     const parsed = new URL(url);
     const options = {
       hostname: parsed.hostname,
@@ -40,6 +25,21 @@ function rawWebhookRequest(url, method, payload) {
     req.write(body);
     req.end();
   });
+}
+
+async function sendComponentsV2(webhookUrl, payload) {
+  const { flags, content, embeds, ...rest } = payload;
+  const body = {
+    ...rest,
+    flags: 32768,
+  };
+  return rawWebhookRequest(webhookUrl + '?wait=true', 'POST', body);
+}
+
+async function editComponentsV2(webhookUrl, messageId, payload) {
+  const { flags, content, embeds, ...rest } = payload;
+  const body = { ...rest, flags: 32768 };
+  return rawWebhookRequest(`${webhookUrl}/messages/${messageId}`, 'PATCH', body);
 }
 
 module.exports = { sendComponentsV2, editComponentsV2 };

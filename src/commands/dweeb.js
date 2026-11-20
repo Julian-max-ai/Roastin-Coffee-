@@ -1,137 +1,111 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+const { REST } = require('@discordjs/rest');
+const { Routes } = require('discord-api-types/v10');
 const GuildConfig = require('../models/GuildConfig');
-const { sendComponentsV2, editComponentsV2 } = require('../utils/webhook');
+
+const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('dweeb')
-    .setDescription('Manage dweeb.faizo.net webhook integration.')
+    .setDescription('Send a dweeb.faizo.net Components V2 message.')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addSubcommand(sub => sub
-      .setName('set-webhook')
-      .setDescription('Save a Discord webhook URL for a channel type.')
-      .addStringOption(o => o.setName('type').setDescription('Which channel').setRequired(true)
-        .addChoices(
-          { name: '📢 Announcement', value: 'announcementWebhook' },
-          { name: '📋 Review', value: 'reviewWebhook' },
-          { name: '📃 Partner List', value: 'partnerListWebhook' },
-        ))
-      .addStringOption(o => o.setName('url').setDescription('Discord webhook URL').setRequired(true)))
-    .addSubcommand(sub => sub
       .setName('send')
-      .setDescription('Send a dweeb JSON payload to a webhook channel.')
-      .addStringOption(o => o.setName('type').setDescription('Which channel').setRequired(true)
-        .addChoices(
-          { name: '📢 Announcement', value: 'announcementWebhook' },
-          { name: '📋 Review', value: 'reviewWebhook' },
-          { name: '📃 Partner List', value: 'partnerListWebhook' },
-        )))
+      .setDescription('Send a dweeb JSON payload to a channel.')
+      .addChannelOption(o => o.setName('channel').setDescription('Target channel').setRequired(true)))
     .addSubcommand(sub => sub
-      .setName('view')
-      .setDescription('View saved webhook URLs.')),
+      .setName('edit')
+      .setDescription('Edit an existing dweeb message.')
+      .addChannelOption(o => o.setName('channel').setDescription('Channel with the message').setRequired(true))
+      .addStringOption(o => o.setName('message_id').setDescription('Message ID to edit').setRequired(true))),
 
   async execute(interaction) {
-    const { guildId } = interaction;
     const sub = interaction.options.getSubcommand();
-
-    if (sub === 'set-webhook') {
-      const type = interaction.options.getString('type');
-      const url = interaction.options.getString('url');
-
-      if (!url.startsWith('https://discord.com/api/webhooks/') && !url.startsWith('https://discordapp.com/api/webhooks/')) {
-        return interaction.reply({ content: '❌ Invalid webhook URL. Must be a Discord webhook URL.', ephemeral: true });
-      }
-
-      await GuildConfig.findOneAndUpdate({ guildId }, { [type]: url }, { upsert: true });
-
-      const labels = { announcementWebhook: '📢 Announcement', reviewWebhook: '📋 Review', partnerListWebhook: '📃 Partner List' };
-      return interaction.reply({ content: `✅ **${labels[type]}** webhook saved.`, ephemeral: true });
-    }
-
-    if (sub === 'view') {
-      const cfg = await GuildConfig.findOne({ guildId });
-      return interaction.reply({
-        content:
-          `## 🔗 Saved Webhook URLs\n\n` +
-          `> 📢 **Announcement:** ${cfg?.announcementWebhook ? '✅ Set' : '❌ Not set'}\n` +
-          `> 📋 **Review:** ${cfg?.reviewWebhook ? '✅ Set' : '❌ Not set'}\n` +
-          `> 📃 **Partner List:** ${cfg?.partnerListWebhook ? '✅ Set' : '❌ Not set'}\n\n` +
-          `-# Use /dweeb send to post a dweeb JSON payload`,
-        ephemeral: true,
-      });
-    }
+    const channel = interaction.options.getChannel('channel');
 
     if (sub === 'send') {
-      const type = interaction.options.getString('type');
-      const cfg = await GuildConfig.findOne({ guildId });
-      const webhookUrl = cfg?.[type];
-
-      if (!webhookUrl) return interaction.reply({ content: `❌ No webhook set for this type. Use \`/dweeb set-webhook\` first.`, ephemeral: true });
-
-      // Open modal to paste dweeb JSON
       const modal = new ModalBuilder()
-        .setCustomId(`dweeb_send:${type}`)
+        .setCustomId(`dweeb_send:${channel.id}`)
         .setTitle('Paste Dweeb JSON Payload');
-
       modal.addComponents(new ActionRowBuilder().addComponents(
         new TextInputBuilder()
           .setCustomId('json_payload')
-          .setLabel('Paste the JSON from dweeb.faizo.net')
+          .setLabel('JSON from dweeb.faizo.net → Export → JSON')
           .setStyle(TextInputStyle.Paragraph)
-          .setPlaceholder('{"components": [...]}')
+          .setPlaceholder('{"components": [...], "flags": 32768}')
           .setRequired(true)
       ));
+      return interaction.showModal(modal);
+    }
 
+    if (sub === 'edit') {
+      const messageId = interaction.options.getString('message_id');
+      const modal = new ModalBuilder()
+        .setCustomId(`dweeb_edit:${channel.id}:${messageId}`)
+        .setTitle('Edit Dweeb Message');
+      modal.addComponents(new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('json_payload')
+          .setLabel('New JSON from dweeb.faizo.net')
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(true)
+      ));
       return interaction.showModal(modal);
     }
   },
 };
 
 async function handleDweebModal(interaction) {
-  const type = interaction.customId.replace('dweeb_send:', '');
-  const cfg = await GuildConfig.findOne({ guildId: interaction.guildId });
-  const webhookUrl = cfg?.[type];
-
-  if (!webhookUrl) return interaction.reply({ content: '❌ Webhook URL not found.', ephemeral: true });
+  const parts = interaction.customId.split(':');
+  const action = parts[0];
+  const channelId = parts[1];
 
   let payload;
   try {
     payload = JSON.parse(interaction.fields.getTextInputValue('json_payload'));
-    // Remove media components with empty URLs (dweeb placeholder images)
     payload = cleanPayload(payload);
+    payload.flags = 32768;
   } catch {
-    return interaction.reply({ content: '❌ Invalid JSON. Please copy the exact JSON from dweeb.faizo.net.', ephemeral: true });
+    return interaction.reply({ content: '❌ Invalid JSON.', ephemeral: true });
   }
 
+  await interaction.deferReply({ ephemeral: true });
+
   try {
-    await sendComponentsV2(webhookUrl, payload);
-    return interaction.reply({ content: '✅ Message sent successfully via webhook!', ephemeral: true });
+    if (action === 'dweeb_send') {
+      await rest.post(Routes.channelMessages(channelId), { body: payload });
+      return interaction.editReply({ content: `✅ Message sent in <#${channelId}>!` });
+    }
+
+    if (action === 'dweeb_edit') {
+      const messageId = parts[2];
+      await rest.patch(Routes.channelMessage(channelId, messageId), { body: payload });
+      return interaction.editReply({ content: `✅ Message updated in <#${channelId}>!` });
+    }
   } catch (err) {
     console.error(err);
-    return interaction.reply({ content: `❌ Failed to send: ${err.message}`, ephemeral: true });
+    return interaction.editReply({ content: `❌ Failed: ${err.message}` });
   }
 }
 
-module.exports.handleDweebModal = handleDweebModal;
-
 function cleanPayload(payload) {
   if (!payload?.components) return payload;
-  payload.components = payload.components.map(c => cleanComponent(c)).filter(Boolean);
+  payload.components = payload.components.map(cleanComponent).filter(Boolean);
   return payload;
 }
 
 function cleanComponent(c) {
   if (!c) return null;
-  // Remove media components (type 12) with empty or missing URL
   if (c.type === 12) {
     c.items = (c.items || []).filter(item => item?.media?.url && item.media.url.trim() !== '');
     if (!c.items.length) return null;
   }
-  // Recurse into nested components
   if (Array.isArray(c.components)) {
     c.components = c.components.map(cleanComponent).filter(Boolean);
-    // Remove container if it only had empty media and is now empty
     if (c.type === 17 && !c.components.length) return null;
   }
   return c;
 }
+
+module.exports.handleDweebModal = handleDweebModal;
