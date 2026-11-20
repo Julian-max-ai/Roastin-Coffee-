@@ -39,12 +39,29 @@ module.exports = {
 
 async function handleConfigInteraction(interaction) {
   const { guildId } = interaction;
+  const isModal = interaction.isModalSubmit();
+
+  // Defer before async DB work to prevent Discord interaction timeout (>3s).
+  // Modal-opening interactions (showModal) must be called directly and are excluded.
+  const opensModal =
+    (interaction.isStringSelectMenu() && interaction.customId === 'cfg_auto_pick') ||
+    (interaction.isStringSelectMenu() && interaction.customId === 'cfg_text_pick') ||
+    (interaction.isButton() && interaction.customId === 'cfg_setReviewLink') ||
+    (interaction.isButton() && interaction.customId === 'cfg_setReviewQuestions');
+
+  if (!isModal && !opensModal) {
+    if (interaction.isButton() || interaction.isAnySelectMenu()) {
+      await interaction.deferUpdate();
+    } else if (isModal) {
+      await interaction.deferReply();
+    }
+  }
 
   if (interaction.isStringSelectMenu() && interaction.customId === 'cfg_category') {
     const cat = interaction.values[0];
 
     if (cat === 'channels') {
-      return interaction.update(configPanel(await GuildConfig.findOne({ guildId }), [
+      return interaction.editReply(configPanel(await GuildConfig.findOne({ guildId }), [
         new ActionRowBuilder().addComponents(
           new StringSelectMenuBuilder().setCustomId('cfg_ch_pick').setPlaceholder('Which channel to set?').addOptions([
             { label: '📢 Announcement Channel', value: 'announcementChannel' },
@@ -63,7 +80,7 @@ async function handleConfigInteraction(interaction) {
     }
 
     if (cat === 'roles') {
-      return interaction.update(configPanel(await GuildConfig.findOne({ guildId }), [
+      return interaction.editReply(configPanel(await GuildConfig.findOne({ guildId }), [
         new ActionRowBuilder().addComponents(
           new RoleSelectMenuBuilder().setCustomId('cfg_prStaffRoles').setPlaceholder('👔 PR Staff Roles').setMinValues(1).setMaxValues(5)
         ),
@@ -77,7 +94,7 @@ async function handleConfigInteraction(interaction) {
     }
 
     if (cat === 'review') {
-      return interaction.update(configPanel(await GuildConfig.findOne({ guildId }), [
+      return interaction.editReply(configPanel(await GuildConfig.findOne({ guildId }), [
         new ActionRowBuilder().addComponents(
           new StringSelectMenuBuilder().setCustomId('cfg_reviewMode').setPlaceholder('Review mode...').addOptions([
             { label: '💬 In-Discord Form', value: 'dm', description: 'Bot sends a modal with questions' },
@@ -93,7 +110,7 @@ async function handleConfigInteraction(interaction) {
     }
 
     if (cat === 'texts') {
-      return interaction.update(configPanel(await GuildConfig.findOne({ guildId }), [
+      return interaction.editReply(configPanel(await GuildConfig.findOne({ guildId }), [
         new ActionRowBuilder().addComponents(
           new StringSelectMenuBuilder().setCustomId('cfg_text_pick').setPlaceholder('Which text to edit?').addOptions([
             { label: '📃 Partner List Text', value: 'partnerListText', description: 'Use {partners} as placeholder' },
@@ -109,7 +126,7 @@ async function handleConfigInteraction(interaction) {
 
     if (cat === 'automation') {
       const cfg = await GuildConfig.findOne({ guildId });
-      return interaction.update(automationPanel(cfg, [
+      return interaction.editReply(automationPanel(cfg, [
         new ActionRowBuilder().addComponents(
           new StringSelectMenuBuilder().setCustomId('cfg_auto_pick').setPlaceholder('Which setting to change?').addOptions([
             { label: 'Ticket Inactivity Reminder', value: 'ticketInactivityEnabled', description: 'Toggle on/off' },
@@ -148,7 +165,7 @@ async function handleConfigInteraction(interaction) {
       const newVal = !current;
       await GuildConfig.findOneAndUpdate({ guildId }, { [`automation.${key}`]: newVal }, { upsert: true });
       const updated = await GuildConfig.findOne({ guildId });
-      return interaction.update(automationPanel(updated, [
+      return interaction.editReply(automationPanel(updated, [
         new ActionRowBuilder().addComponents(
           new StringSelectMenuBuilder().setCustomId('cfg_auto_pick').setPlaceholder('Which setting to change?').addOptions([
             { label: 'Ticket Inactivity Reminder', value: 'ticketInactivityEnabled', description: 'Toggle on/off' },
@@ -197,7 +214,7 @@ async function handleConfigInteraction(interaction) {
     const key = interaction.customId.replace('cfg_auto_value:', '');
     const raw = interaction.fields.getTextInputValue('auto_value');
     const num = parseInt(raw, 10);
-    if (isNaN(num) || num < 0) return interaction.reply(errorCard('Please enter a valid non-negative number.'));
+    if (isNaN(num) || num < 0) return interaction.editReply(errorCard('Please enter a valid non-negative number.'));
 
     const maxMap = {
       ticketInactivityHours: 720, ticketAutoCloseHours: 720, ticketCloseRequestHours: 720,
@@ -205,11 +222,11 @@ async function handleConfigInteraction(interaction) {
       reviewReminderDays: 365, reviewOverdueDays: 365, eventReminderHours: 8760,
     };
     const max = maxMap[key] ?? 999999;
-    if (num > max) return interaction.reply(errorCard(`Value must be ≤ ${max}.`));
+    if (num > max) return interaction.editReply(errorCard(`Value must be ≤ ${max}.`));
 
     await GuildConfig.findOneAndUpdate({ guildId }, { [`automation.${key}`]: num }, { upsert: true });
     const updated = await GuildConfig.findOne({ guildId });
-    return interaction.update(automationPanel(updated, [
+    return interaction.editReply(automationPanel(updated, [
       new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder().setCustomId('cfg_auto_pick').setPlaceholder('Which setting to change?').addOptions([
           { label: 'Ticket Inactivity Reminder', value: 'ticketInactivityEnabled', description: 'Toggle on/off' },
@@ -238,7 +255,7 @@ async function handleConfigInteraction(interaction) {
 
   if (interaction.isStringSelectMenu() && interaction.customId === 'cfg_ch_pick') {
     const key = interaction.values[0];
-    return interaction.update(configPanel(await GuildConfig.findOne({ guildId }), [
+    return interaction.editReply(configPanel(await GuildConfig.findOne({ guildId }), [
       new ActionRowBuilder().addComponents(
         new ChannelSelectMenuBuilder().setCustomId(`cfg_channel:${key}`).setPlaceholder('Select channel...').addChannelTypes(ChannelType.GuildText)
       ),
@@ -255,7 +272,7 @@ async function handleConfigInteraction(interaction) {
     if (!key) return;
     await GuildConfig.findOneAndUpdate({ guildId }, { [key]: interaction.values[0] }, { upsert: true });
     const cfg = await GuildConfig.findOne({ guildId });
-    return interaction.update(configPanel(cfg, [mainMenu()]));
+    return interaction.editReply(configPanel(cfg, [mainMenu()]));
   }
 
   if (interaction.isRoleSelectMenu()) {
@@ -263,13 +280,13 @@ async function handleConfigInteraction(interaction) {
     if (!['cfg_prStaffRoles', 'cfg_partnerRepRoles'].includes(key)) return;
     await GuildConfig.findOneAndUpdate({ guildId }, { [key.replace('cfg_', '')]: interaction.values }, { upsert: true });
     const cfg = await GuildConfig.findOne({ guildId });
-    return interaction.update(configPanel(cfg, [mainMenu()]));
+    return interaction.editReply(configPanel(cfg, [mainMenu()]));
   }
 
   if (interaction.isStringSelectMenu() && interaction.customId === 'cfg_reviewMode') {
     await GuildConfig.findOneAndUpdate({ guildId }, { reviewMode: interaction.values[0] }, { upsert: true });
     const cfg = await GuildConfig.findOne({ guildId });
-    return interaction.update(configPanel(cfg, [mainMenu()]));
+    return interaction.editReply(configPanel(cfg, [mainMenu()]));
   }
 
   if (interaction.isStringSelectMenu() && interaction.customId === 'cfg_text_pick') {
@@ -312,12 +329,12 @@ async function handleConfigInteraction(interaction) {
       const key   = interaction.customId.replace('cfg_text_modal:', '');
       const value = interaction.fields.getTextInputValue('text_value');
       await GuildConfig.findOneAndUpdate({ guildId }, { [key]: value }, { upsert: true });
-      return interaction.reply(successCard('Text updated successfully.'));
+      return interaction.editReply(successCard('Text updated successfully.'));
     }
     if (interaction.customId === 'cfg_reviewLink_modal') {
       const value = interaction.fields.getTextInputValue('link_value');
       await GuildConfig.findOneAndUpdate({ guildId }, { reviewLink: value }, { upsert: true });
-      return interaction.reply(successCard('Review link updated.'));
+      return interaction.editReply(successCard('Review link updated.'));
     }
     if (interaction.customId === 'cfg_reviewQuestions_modal') {
       const raw = interaction.fields.getTextInputValue('questions_value');
@@ -327,16 +344,16 @@ async function handleConfigInteraction(interaction) {
         .slice(0, 5)
         .map(q => q.slice(0, 45));
       if (questions.length === 0) {
-        return interaction.reply(errorCard('Please enter at least one question.'));
+        return interaction.editReply(errorCard('Please enter at least one question.'));
       }
       await GuildConfig.findOneAndUpdate({ guildId }, { reviewQuestions: questions }, { upsert: true });
-      return interaction.reply(successCard(`Review questions updated (${questions.length}).`));
+      return interaction.editReply(successCard(`Review questions updated (${questions.length}).`));
     }
   }
 
   if (interaction.isButton() && interaction.customId === 'cfg_back') {
     const cfg = await GuildConfig.findOne({ guildId });
-    return interaction.update(configPanel(cfg, [mainMenu()]));
+    return interaction.editReply(configPanel(cfg, [mainMenu()]));
   }
 }
 
