@@ -1,117 +1,176 @@
 const {
   SlashCommandBuilder, PermissionFlagsBits,
-  ActionRowBuilder, ButtonBuilder, ButtonStyle,
   ChannelType, PermissionsBitField,
-  StringSelectMenuBuilder,
+  ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder,
 } = require('discord.js');
 const GuildConfig = require('../models/GuildConfig');
 const TicketType = require('../models/TicketType');
 
+// Fixed ticket types — customIds match dweeb button customIds
+const DEFAULT_TYPES = [
+  {
+    customId: 'general',
+    name: 'General Question',
+    emoji: '💬',
+    questions: [
+      'What is your question?',
+      'Is this related to an existing partnership?',
+      'How can we best assist you?',
+    ],
+    welcomeText: 'Thank you for reaching out! A PR staff member will be with you shortly.',
+  },
+  {
+    customId: 'partnership',
+    name: 'Partnership Request',
+    emoji: '🤝',
+    questions: [
+      'What is the name of your Roblox group/community?',
+      'What is your Roblox group link?',
+      'What is your Discord server invite link?',
+      'How many members does your group have?',
+      'Why do you want to partner with Roastin Coffee?',
+      'What can you offer as a partner?',
+    ],
+    welcomeText: 'Thank you for your partnership interest! Please answer the questions below and a PR staff member will review your application.',
+  },
+  {
+    customId: 'report',
+    name: 'Public Relations Report',
+    emoji: '📋',
+    questions: [
+      'Who or what are you reporting?',
+      'What happened? Please describe in detail.',
+      'When did this occur?',
+      'Do you have any evidence (screenshots, links)?',
+    ],
+    welcomeText: 'Thank you for your report. This ticket is confidential. A senior PR staff member will review it shortly.',
+  },
+];
+
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName('ticket-panel')
-    .setDescription('Manage the ticket panel.')
+    .setName('ticket')
+    .setDescription('Manage the ticket system.')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-    .addSubcommand(sub => sub.setName('post').setDescription('Post the ticket panel in this channel.'))
     .addSubcommand(sub => sub
-      .setName('create-type')
-      .setDescription('Create a new ticket type.')
-      .addStringOption(o => o.setName('name').setDescription('Ticket type name').setRequired(true))
-      .addStringOption(o => o.setName('emoji').setDescription('Emoji for this type').setRequired(true))
-      .addStringOption(o => o.setName('description').setDescription('Short description').setRequired(true))
-      .addStringOption(o => o.setName('questions').setDescription('Questions separated by | (pipe)').setRequired(true))
-      .addRoleOption(o => o.setName('staff_role').setDescription('Staff role for this ticket type').setRequired(true)))
+      .setName('setup')
+      .setDescription('Initialize the 3 default ticket types for this server.'))
     .addSubcommand(sub => sub
-      .setName('list-types')
-      .setDescription('List all ticket types.')),
+      .setName('edit')
+      .setDescription('Edit a ticket type.')
+      .addStringOption(o => o.setName('type').setDescription('Ticket type').setRequired(true)
+        .addChoices(
+          { name: '💬 General Question', value: 'general' },
+          { name: '🤝 Partnership Request', value: 'partnership' },
+          { name: '📋 PR Report', value: 'report' },
+        )))
+    .addSubcommand(sub => sub
+      .setName('info')
+      .setDescription('View current ticket type configuration.')),
 
   async execute(interaction) {
     const { guildId } = interaction;
     const sub = interaction.options.getSubcommand();
 
-    if (sub === 'create-type') {
-      const name = interaction.options.getString('name');
-      const emoji = interaction.options.getString('emoji');
-      const description = interaction.options.getString('description');
-      const questions = interaction.options.getString('questions').split('|').map(q => q.trim());
-      const staffRole = interaction.options.getRole('staff_role');
-
-      await TicketType.create({ guildId, name, emoji, description, questions, staffRoles: [staffRole.id] });
-
+    if (sub === 'setup') {
+      for (const t of DEFAULT_TYPES) {
+        await TicketType.findOneAndUpdate(
+          { guildId, customId: t.customId },
+          { ...t, guildId },
+          { upsert: true, new: true }
+        );
+      }
       return interaction.reply({
         content:
-          `## ✅ Ticket Type Created\n\n` +
-          `**${emoji} ${name}**\n` +
-          `> ${description}\n\n` +
-          `**Questions:**\n${questions.map((q, i) => `> **${i + 1}.** ${q}`).join('\n')}\n` +
-          `**Staff Role:** <@&${staffRole.id}>`,
+          `## ✅ Ticket System Ready\n` +
+          `-# Roastin Coffee Ticket System\n\n` +
+          `**3 ticket types configured:**\n\n` +
+          `> 💬 **General Question** → Button customId: \`ticket_open:general\`\n` +
+          `> 🤝 **Partnership Request** → Button customId: \`ticket_open:partnership\`\n` +
+          `> 📋 **PR Report** → Button customId: \`ticket_open:report\`\n\n` +
+          `**In dweeb.faizo.net:**\n` +
+          `> Add buttons with these exact customIds to your ticket panel design.\n\n` +
+          `-# Use \`/ticket edit\` to customize questions and welcome texts.`,
         ephemeral: true,
       });
     }
 
-    if (sub === 'list-types') {
+    if (sub === 'info') {
       const types = await TicketType.find({ guildId });
-      if (!types.length) return interaction.reply({ content: '❌ No ticket types created yet. Use `/ticket-panel create-type`.', ephemeral: true });
+      if (!types.length) return interaction.reply({ content: '❌ No ticket types found. Run `/ticket setup` first.', ephemeral: true });
 
-      let msg = `## 🎫 Ticket Types\n-# ${types.length} type(s)\n\n`;
+      let msg = `## 🎫 Ticket Types\n-# ${types.length} type(s) configured\n\n`;
       for (const t of types) {
-        msg += `**${t.emoji} ${t.name}**\n> ${t.description}\n\n`;
+        msg += `**${t.emoji} ${t.name}** (\`ticket_open:${t.customId}\`)\n`;
+        msg += `> ${t.welcomeText}\n`;
+        msg += `> **Questions:** ${t.questions.length}\n`;
+        msg += `> **Staff Roles:** ${t.staffRoles.length ? t.staffRoles.map(r => `<@&${r}>`).join(', ') : '*None set*'}\n\n`;
       }
       return interaction.reply({ content: msg, ephemeral: true });
     }
 
-    if (sub === 'post') {
-      const cfg = await GuildConfig.findOne({ guildId });
-      const types = await TicketType.find({ guildId });
+    if (sub === 'edit') {
+      const typeId = interaction.options.getString('type');
+      const type = await TicketType.findOne({ guildId, customId: typeId });
+      if (!type) return interaction.reply({ content: '❌ Run `/ticket setup` first.', ephemeral: true });
 
-      if (!types.length) return interaction.reply({ content: '❌ No ticket types found. Create one with `/ticket-panel create-type` first.', ephemeral: true });
+      const modal = new ModalBuilder()
+        .setCustomId(`ticket_edit:${typeId}`)
+        .setTitle(`Edit ${type.name}`);
 
-      const text = cfg?.ticketPanelText || '## 🎫 Support & Partnership\n\nSelect an option below to open a ticket.';
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId('welcome_text').setLabel('Welcome Text')
+            .setStyle(TextInputStyle.Paragraph).setValue(type.welcomeText).setRequired(true)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId('questions').setLabel('Questions (one per line)')
+            .setStyle(TextInputStyle.Paragraph).setValue(type.questions.join('\n')).setRequired(true)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId('staff_roles').setLabel('Staff Role IDs (comma separated)')
+            .setStyle(TextInputStyle.Short).setValue(type.staffRoles.join(', ')).setRequired(false)
+        ),
+      );
 
-      // Max 5 buttons per row, max 25 options in select menu
-      const rows = [];
-      if (types.length <= 5) {
-        const row = new ActionRowBuilder();
-        for (const t of types) {
-          row.addComponents(
-            new ButtonBuilder()
-              .setCustomId(`ticket_open:${t._id}`)
-              .setLabel(`${t.emoji} ${t.name}`)
-              .setStyle(ButtonStyle.Primary)
-          );
-        }
-        rows.push(row);
-      } else {
-        rows.push(new ActionRowBuilder().addComponents(
-          new StringSelectMenuBuilder()
-            .setCustomId('ticket_select')
-            .setPlaceholder('Select ticket type...')
-            .addOptions(types.slice(0, 25).map(t => ({ label: `${t.emoji} ${t.name}`, value: t._id.toString(), description: t.description })))
-        ));
-      }
-
-      await interaction.reply({ content: '✅ Ticket panel posted.', ephemeral: true });
-      await interaction.channel.send({ content: text, components: rows });
+      return interaction.showModal(modal);
     }
   },
 };
 
-async function handleTicketOpen(interaction, typeId) {
+async function handleTicketEditModal(interaction) {
+  const typeId = interaction.customId.replace('ticket_edit:', '');
+  const { guildId } = interaction;
+
+  const welcomeText = interaction.fields.getTextInputValue('welcome_text');
+  const questions = interaction.fields.getTextInputValue('questions').split('\n').map(q => q.trim()).filter(Boolean);
+  const staffRolesRaw = interaction.fields.getTextInputValue('staff_roles');
+  const staffRoles = staffRolesRaw ? staffRolesRaw.split(',').map(r => r.trim()).filter(Boolean) : [];
+
+  await TicketType.findOneAndUpdate({ guildId, customId: typeId }, { welcomeText, questions, staffRoles });
+
+  return interaction.reply({ content: `✅ Ticket type updated successfully.`, ephemeral: true });
+}
+
+async function handleTicketOpen(interaction) {
+  const typeId = interaction.customId.replace('ticket_open:', '');
   const { guild, user } = interaction;
-  const type = await TicketType.findById(typeId).catch(() => null);
-  if (!type) return interaction.reply({ content: '❌ Ticket type not found.', ephemeral: true });
+
+  const type = await TicketType.findOne({ guildId: guild.id, customId: typeId });
+  if (!type) return interaction.reply({ content: '❌ This ticket type is not configured. Ask an admin to run `/ticket setup`.', ephemeral: true });
 
   const cfg = await GuildConfig.findOne({ guildId: guild.id });
-  const channelName = `${type.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${user.username.toLowerCase().replace(/[^a-z0-9]/g, '')}`.slice(0, 100);
+  const channelName = `${type.customId}-${user.username.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20)}`;
 
   const existing = guild.channels.cache.find(c => c.name === channelName);
   if (existing) return interaction.reply({ content: `❌ You already have an open ticket: <#${existing.id}>`, ephemeral: true });
 
-  const staffRoles = [...(type.staffRoles || []), ...(cfg?.prStaffRoles || [])];
+  const staffRoles = [...new Set([...(type.staffRoles || []), ...(cfg?.prStaffRoles || [])])];
+
   const permissionOverwrites = [
     { id: guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
-    { id: user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
-    ...staffRoles.map(r => ({ id: r, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] })),
+    { id: user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] },
+    ...staffRoles.map(r => ({ id: r, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] })),
   ];
 
   const ticketChannel = await guild.channels.create({
@@ -121,19 +180,21 @@ async function handleTicketOpen(interaction, typeId) {
     permissionOverwrites,
   });
 
-  const pingText = staffRoles.map(r => `<@&${r}>`).join(' ');
+  const pingText = [`<@${user.id}>`, ...staffRoles.map(r => `<@&${r}>`)].join(' ');
+
   let msg =
     `## ${type.emoji} ${type.name}\n` +
     `-# Roastin Coffee Ticket System\n\n` +
-    `Welcome, <@${user.id}>! A staff member will be with you shortly.\n\n` +
+    `${type.welcomeText}\n\n` +
     `### 📋 Please answer the following:\n`;
 
   type.questions.forEach((q, i) => { msg += `\n**${i + 1}.** ${q}`; });
 
-  await ticketChannel.send({ content: `${pingText ? pingText + ' ' : ''}<@${user.id}>` });
+  await ticketChannel.send({ content: pingText });
   await ticketChannel.send({ content: msg });
 
   return interaction.reply({ content: `✅ Your ticket has been created: <#${ticketChannel.id}>`, ephemeral: true });
 }
 
 module.exports.handleTicketOpen = handleTicketOpen;
+module.exports.handleTicketEditModal = handleTicketEditModal;
