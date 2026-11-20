@@ -61,16 +61,16 @@ async function handleDweebModal(interaction) {
   try {
     if (action === 'dweeb_send') {
       await rest.post(Routes.channelMessages(channelId), { body: payload });
-      return interaction.editReply(successCard(`Message sent in <#${channelId}>!`));
+      return interaction.reply(successCard(`Message sent in <#${channelId}>!`));
     }
     if (action === 'dweeb_edit') {
       const messageId = parts[2];
       await rest.patch(Routes.channelMessage(channelId, messageId), { body: payload });
-      return interaction.editReply(successCard(`Message updated in <#${channelId}>!`));
+      return interaction.reply(successCard(`Message updated in <#${channelId}>!`));
     }
   } catch (err) {
     console.error('[dweeb]', err);
-    return interaction.editReply(errorCard(`Failed to send: ${err.message}`));
+    return interaction.reply(errorCard(`Failed to send: ${err.message}`));
   }
 }
 

@@ -24,7 +24,8 @@ async function route(interaction, client) {
   // ── Slash commands ──────────────────────────────────────────────────────────
   if (interaction.isChatInputCommand()) {
     const cmd = client.commands.get(interaction.commandName);
-    if (cmd) await cmd.execute(interaction);
+    if (!cmd) return;
+    await cmd.execute(interaction);
     return;
   }
 

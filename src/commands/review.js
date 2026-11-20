@@ -14,6 +14,7 @@ module.exports = {
 
   async execute(interaction) {
     await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ ephemeral: true });
     const count = await sendMonthlyReviews(interaction.client, interaction.guildId);
     await interaction.editReply(successCard(`Monthly review sent to **${count}** partner(s).`));
   },
@@ -50,11 +51,11 @@ async function sendMonthlyReviews(client, targetGuildId = null) {
 async function handleReviewStart(interaction) {
   const partnerId = interaction.customId.split(':')[1];
   const partner   = await Partner.findById(partnerId).catch(() => null);
-  if (!partner) return interaction.reply(errorCard('Partner not found.'));
+  if (!partner) return interaction.editReply(errorCard('Partner not found.'));
 
   // Only the representative may answer
   if (interaction.user.id !== partner.representativeId) {
-    return interaction.reply(errorCard('Only the partner representative can complete this review.'));
+    return interaction.editReply(errorCard('Only the partner representative can complete this review.'));
   }
 
   const cfg       = await GuildConfig.findOne({ guildId: interaction.guildId });
@@ -80,7 +81,7 @@ async function handleReviewStart(interaction) {
 async function handleReviewSubmit(interaction) {
   const partnerId = interaction.customId.replace('review_submit:', '');
   const partner   = await Partner.findById(partnerId).catch(() => null);
-  if (!partner) return interaction.reply(errorCard('Partner not found.'));
+  if (!partner) return interaction.editReply(errorCard('Partner not found.'));
 
   const cfg       = await GuildConfig.findOne({ guildId: interaction.guildId });
   const questions = (cfg?.reviewQuestions || []).slice(0, 5);
@@ -100,7 +101,7 @@ async function handleReviewSubmit(interaction) {
     if (ch) await ch.send(card).catch(() => {});
   }
 
-  await interaction.reply(successCard('Your review has been submitted. Thank you!'));
+  await interaction.editReply(successCard('Your review has been submitted. Thank you!'));
 }
 
 module.exports.sendMonthlyReviews = sendMonthlyReviews;

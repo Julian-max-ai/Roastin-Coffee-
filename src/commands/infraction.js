@@ -56,6 +56,7 @@ module.exports = {
   },
 
   async execute(interaction) {
+    await interaction.deferReply({ ephemeral: true });
     const { guildId } = interaction;
     const sub = interaction.options.getSubcommand();
     const cfg = await GuildConfig.findOne({ guildId });
@@ -66,7 +67,7 @@ module.exports = {
       const reason      = interaction.options.getString('reason');
 
       const partner = await Partner.findOne({ guildId, name: partnerName });
-      if (!partner) return interaction.reply(errorCard(`No partner named **${partnerName}** found.`));
+      if (!partner) return interaction.editReply(errorCard(`No partner named **${partnerName}** found.`));
 
       const infraction = await Infraction.create({ guildId, partnerId: partner._id.toString(), type, reason, issuedBy: interaction.user.id });
       const activeStrikes = await Infraction.countDocuments({ guildId, partnerId: partner._id.toString(), type: 'strike', removed: false });
@@ -84,7 +85,7 @@ module.exports = {
       } catch { dmFailed = true; }
 
       const card = infractionCard(infraction, partner, interaction.user.id, activeStrikes, STRIKE_LIMIT, dmFailed);
-      await interaction.reply(card);
+      await interaction.editReply(card);
 
       if (cfg?.logChannel) {
         const ch = await interaction.client.channels.fetch(cfg.logChannel).catch(() => null);
@@ -100,14 +101,14 @@ module.exports = {
     if (sub === 'list') {
       const partnerName = interaction.options.getString('partner');
       const partner     = await Partner.findOne({ guildId, name: partnerName });
-      if (!partner) return interaction.reply(errorCard(`No partner named **${partnerName}** found.`));
+      if (!partner) return interaction.editReply(errorCard(`No partner named **${partnerName}** found.`));
 
       const all    = await Infraction.find({ guildId, partnerId: partner._id.toString(), removed: false });
       const strikes = all.filter(i => i.type === 'strike').length;
       const { items, totalPages, page, row } = paginate(all, 0, PAGE_SIZE);
       const res = infractionListCard(partner, items, page, totalPages, strikes, STRIKE_LIMIT);
       if (row) res.components = [...res.components, row];
-      await interaction.reply(res);
+      await interaction.editReply(res);
     }
 
     if (sub === 'remove') {
@@ -118,8 +119,8 @@ module.exports = {
         { new: true }
       ).catch(() => null);
 
-      if (!infraction) return interaction.reply(errorCard('Infraction not found. Make sure you selected a valid entry.'));
-      await interaction.reply(successCard(`Infraction \`${id}\` has been removed.`));
+      if (!infraction) return interaction.editReply(errorCard('Infraction not found. Make sure you selected a valid entry.'));
+      await interaction.editReply(successCard(`Infraction \`${id}\` has been removed.`));
     }
   },
 };

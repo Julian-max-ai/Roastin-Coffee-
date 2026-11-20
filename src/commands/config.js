@@ -8,7 +8,6 @@ const {
 } = require('discord.js');
 const GuildConfig = require('../models/GuildConfig');
 const { configPanel, successCard, errorCard } = require('../ui');
-const { EMOJI } = require('../theme');
 
 function mainMenu() {
   return new ActionRowBuilder().addComponents(
@@ -31,15 +30,15 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   async execute(interaction) {
+    await interaction.deferReply({ ephemeral: true });
     const cfg = await GuildConfig.findOne({ guildId: interaction.guildId });
-    await interaction.reply({ ...configPanel(cfg), components: [mainMenu()] });
+    await interaction.editReply({ ...configPanel(cfg), components: [mainMenu()] });
   },
 };
 
 async function handleConfigInteraction(interaction) {
   const { guildId } = interaction;
 
-  // Category select
   if (interaction.isStringSelectMenu() && interaction.customId === 'cfg_category') {
     const cat = interaction.values[0];
 
@@ -119,7 +118,6 @@ async function handleConfigInteraction(interaction) {
     }
   }
 
-  // Channel type picker
   if (interaction.isStringSelectMenu() && interaction.customId === 'cfg_ch_pick') {
     const key = interaction.values[0];
     return interaction.update({
@@ -135,7 +133,6 @@ async function handleConfigInteraction(interaction) {
     });
   }
 
-  // Channel selected
   if (interaction.isChannelSelectMenu()) {
     const key = interaction.customId.startsWith('cfg_channel:')
       ? interaction.customId.replace('cfg_channel:', '')
@@ -146,7 +143,6 @@ async function handleConfigInteraction(interaction) {
     return interaction.update({ ...configPanel(cfg), components: [mainMenu()] });
   }
 
-  // Role selected
   if (interaction.isRoleSelectMenu()) {
     const key = interaction.customId;
     if (!['cfg_prStaffRoles', 'cfg_partnerRepRoles'].includes(key)) return;
@@ -155,14 +151,12 @@ async function handleConfigInteraction(interaction) {
     return interaction.update({ ...configPanel(cfg), components: [mainMenu()] });
   }
 
-  // Review mode
   if (interaction.isStringSelectMenu() && interaction.customId === 'cfg_reviewMode') {
     await GuildConfig.findOneAndUpdate({ guildId }, { reviewMode: interaction.values[0] }, { upsert: true });
     const cfg = await GuildConfig.findOne({ guildId });
     return interaction.update({ ...configPanel(cfg), components: [mainMenu()] });
   }
 
-  // Text picker → modal
   if (interaction.isStringSelectMenu() && interaction.customId === 'cfg_text_pick') {
     const key    = interaction.values[0];
     const cfg    = await GuildConfig.findOne({ guildId });
@@ -174,7 +168,6 @@ async function handleConfigInteraction(interaction) {
     return interaction.showModal(modal);
   }
 
-  // Review link modal trigger
   if (interaction.isButton() && interaction.customId === 'cfg_setReviewLink') {
     const cfg   = await GuildConfig.findOne({ guildId });
     const modal = new ModalBuilder().setCustomId('cfg_reviewLink_modal').setTitle('Set Review Link');
@@ -184,7 +177,6 @@ async function handleConfigInteraction(interaction) {
     return interaction.showModal(modal);
   }
 
-  // Modal submits
   if (interaction.isModalSubmit()) {
     if (interaction.customId.startsWith('cfg_text_modal:')) {
       const key   = interaction.customId.replace('cfg_text_modal:', '');
@@ -195,11 +187,10 @@ async function handleConfigInteraction(interaction) {
     if (interaction.customId === 'cfg_reviewLink_modal') {
       const value = interaction.fields.getTextInputValue('link_value');
       await GuildConfig.findOneAndUpdate({ guildId }, { reviewLink: value }, { upsert: true });
-      return interaction.reply(successCard(`Review link updated.`));
+      return interaction.reply(successCard('Review link updated.'));
     }
   }
 
-  // Back button
   if (interaction.isButton() && interaction.customId === 'cfg_back') {
     const cfg = await GuildConfig.findOne({ guildId });
     return interaction.update({ ...configPanel(cfg), components: [mainMenu()] });

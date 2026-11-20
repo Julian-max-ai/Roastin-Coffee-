@@ -35,6 +35,7 @@ module.exports = {
   },
 
   async execute(interaction) {
+    await interaction.deferReply({ ephemeral: true });
     const { guildId } = interaction;
     const sub = interaction.options.getSubcommand();
 
@@ -44,12 +45,12 @@ module.exports = {
       const disc   = interaction.options.getString('discord');
       const rep    = interaction.options.getUser('representative');
 
-      if (!isRobloxLink(roblox)) return interaction.reply(errorCard('Invalid Roblox link. Must contain `roblox.com/groups` or `roblox.com/communities`.'));
-      if (!isDiscordInvite(disc)) return interaction.reply(errorCard('Invalid Discord invite. Must be a `discord.gg/` or `discord.com/invite/` link.'));
-      if (await Partner.findOne({ guildId, name })) return interaction.reply(errorCard(`A partner named **${name}** already exists.`));
+      if (!isRobloxLink(roblox)) return interaction.editReply(errorCard('Invalid Roblox link. Must contain `roblox.com/groups` or `roblox.com/communities`.'));
+      if (!isDiscordInvite(disc)) return interaction.editReply(errorCard('Invalid Discord invite. Must be a `discord.gg/` or `discord.com/invite/` link.'));
+      if (await Partner.findOne({ guildId, name })) return interaction.editReply(errorCard(`A partner named **${name}** already exists.`));
 
       const partner = await Partner.create({ guildId, name, robloxLink: roblox, discordInvite: disc, representativeId: rep.id });
-      await interaction.reply(partnerCard(partner));
+      await interaction.editReply(partnerCard(partner));
       await updatePartnerList(interaction.client, guildId);
       await sendLog(interaction.client, guildId, `${EMOJI.partner} Partner Added`, `**${name}** added by <@${interaction.user.id}>`);
     }
@@ -57,30 +58,30 @@ module.exports = {
     if (sub === 'remove') {
       const name    = interaction.options.getString('name');
       const partner = await Partner.findOne({ guildId, name });
-      if (!partner) return interaction.reply(errorCard(`No partner named **${name}** found.`));
+      if (!partner) return interaction.editReply(errorCard(`No partner named **${name}** found.`));
 
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId(`partner_confirm_remove:${partner._id}`).setLabel('Remove').setStyle(ButtonStyle.Danger),
         new ButtonBuilder().setCustomId('partner_cancel_remove').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
       );
       const reply = errorCard(`Are you sure you want to remove **${name}**? This cannot be undone.`, true);
-      await interaction.reply({ ...reply, components: [row] });
+      await interaction.editReply({ ...reply, components: [row] });
       setTimeout(() => interaction.editReply({ components: [] }).catch(() => {}), 10000);
     }
 
     if (sub === 'edit') {
       const name    = interaction.options.getString('name');
       const partner = await Partner.findOne({ guildId, name });
-      if (!partner) return interaction.reply(errorCard(`No partner named **${name}** found.`));
+      if (!partner) return interaction.editReply(errorCard(`No partner named **${name}** found.`));
 
       const changes = [];
       if (interaction.options.getString('roblox')) {
-        if (!isRobloxLink(interaction.options.getString('roblox'))) return interaction.reply(errorCard('Invalid Roblox link.'));
+        if (!isRobloxLink(interaction.options.getString('roblox'))) return interaction.editReply(errorCard('Invalid Roblox link.'));
         changes.push(`Roblox updated`);
         partner.robloxLink = interaction.options.getString('roblox');
       }
       if (interaction.options.getString('discord')) {
-        if (!isDiscordInvite(interaction.options.getString('discord'))) return interaction.reply(errorCard('Invalid Discord invite.'));
+        if (!isDiscordInvite(interaction.options.getString('discord'))) return interaction.editReply(errorCard('Invalid Discord invite.'));
         changes.push(`Discord updated`);
         partner.discordInvite = interaction.options.getString('discord');
       }
@@ -89,13 +90,13 @@ module.exports = {
         partner.representativeId = interaction.options.getUser('representative').id;
       }
       await partner.save();
-      await interaction.reply(successCard(`**${name}** updated:\n${changes.map(c => `> ${c}`).join('\n')}`));
+      await interaction.editReply(successCard(`**${name}** updated:\n${changes.map(c => `> ${c}`).join('\n')}`));
       await updatePartnerList(interaction.client, guildId);
     }
 
     if (sub === 'list') {
       const all = await Partner.find({ guildId });
-      if (!all.length) return interaction.reply(errorCard('No partners found.'));
+      if (!all.length) return interaction.editReply(errorCard('No partners found.'));
       const { items, totalPages, page, row } = paginate(all, 0, PAGE_SIZE);
       let desc = `**${all.length} active partner(s)**\n\n`;
       for (const pt of items) {
@@ -104,7 +105,7 @@ module.exports = {
       if (totalPages > 1) desc += `-# Page ${page + 1}/${totalPages}`;
       const res = infoCard(`${EMOJI.partner} Partner List`, desc, true);
       if (row) res.components = [...res.components, row];
-      await interaction.reply(res);
+      await interaction.editReply(res);
     }
   },
 };
