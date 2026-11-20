@@ -14,7 +14,10 @@ async function editComponentsV2(webhookUrl, messageId, payload) {
 
 function rawWebhookRequest(url, method, payload) {
   return new Promise((resolve, reject) => {
-    const body = JSON.stringify({ ...payload, flags: 32768 });
+    // Strip flags from payload, send only components
+    const { flags, ...rest } = payload;
+    const body = JSON.stringify({ ...rest, flags: 32768 });
+    console.log('Sending payload:', body.slice(0, 500));
     const parsed = new URL(url);
     const options = {
       hostname: parsed.hostname,
