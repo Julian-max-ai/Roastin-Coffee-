@@ -5,7 +5,7 @@ const {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags,
 } = require('discord.js');
 const { COLORS, EMOJI, BRAND, PRIORITY_COLOR, PRIORITY_EMOJI } = require('../theme');
-const { ts, cap, strikeBar } = require('../utils/format');
+const { ts, cap, strikeBar, truncate } = require('../utils/format');
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
