@@ -12,6 +12,7 @@ const { inviteHealthJob } = require('./jobs/inviteHealth');
 const { weeklyEventDigestJob } = require('./jobs/weeklyEventDigest');
 const { unclaimedSLAJob } = require('./jobs/unclaimedSLA');
 const { pendingRenamesJob } = require('./jobs/pendingRenames');
+const { run: runWeeklyPRReport } = require('./jobs/weeklyPRReport');
 const { sendMonthlyReviews } = require('../commands/review');
 
 // In-memory last-run timestamps per job per guild (for /doctor)
@@ -95,6 +96,15 @@ function startScheduler(client) {
       console.log(`[cron] Monthly reviews sent: ${count}`);
     } catch {}
   }, { timezone: 'UTC' });
+
+  // Weekly PR report — Monday 10:00 UTC
+  cron.schedule('0 10 * * 1', async () => {
+    const GuildConfig = require('../models/GuildConfig');
+    const configs = await GuildConfig.find({ logChannel: { $ne: null } }).catch(() => []);
+    for (const cfg of configs) {
+      await runWeeklyPRReport(client, cfg.guildId).catch(err => console.error('[weeklyPRReport]', err));
+    }
+  });
 
   console.log('[scheduler] All jobs scheduled.');
 }
