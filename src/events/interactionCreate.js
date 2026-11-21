@@ -169,17 +169,15 @@ async function route(interaction, client) {
     if (id.startsWith('appeal_accept:') || id.startsWith('appeal_reject:')) {
       return require('../commands/infraction').handleAppealDecision(interaction);
     }
-    if (id.startsWith('ticket_open:'))          return require('../commands/ticket-panel').handleTicketOpen(interaction);
-    if (id === 'ticket_close')                  return require('../commands/ticket-panel').handleTicketClose(interaction);
-    if (id === 'ticket_close_request')             return require('../commands/ticket-panel').handleTicketCloseRequest(interaction);
     if (id.startsWith('ticket_confirm_close:')) return require('../commands/ticket-panel').handleTicketConfirmClose(interaction);
     if (id === 'ticket_cancel_close')           return require('../commands/ticket-panel').handleTicketCancelClose(interaction);
     if (id.startsWith('ticket_keep_open:'))     return require('../commands/ticket-panel').handleTicketKeepOpen(interaction);
     if (id.startsWith('ticket_agree_close:'))   return require('../commands/ticket-panel').handleTicketAgreeClose(interaction);
-    if (id === 'ticket_claim')                  return require('../commands/ticket-panel').handleTicketClaim(interaction);
-    if (id === 'ticket_release') return require('../commands/ticket-panel').handleTicketRelease(interaction);
     if (id.startsWith('event_interest:')) {
       return require('../commands/event-request').handleEventInterest(interaction);
     }
+
+    // Unknown customId
+    return interaction.reply({ content: 'Diese Schaltfläche ist veraltet.', ephemeral: true }).catch(() => {});
   }
 }
