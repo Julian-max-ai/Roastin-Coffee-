@@ -107,11 +107,14 @@ module.exports = {
       }
 
       let dmFailed = false;
-      try {
-        const rep = await interaction.client.users.fetch(partner.representativeId);
-        // C4: Appeal button only in DM variant
-        await rep.send(infractionCard(infraction, partner, interaction.user.id, activeStrikes, STRIKE_LIMIT, false, true));
-      } catch { dmFailed = true; }
+      const reps = partner.representativeIds?.length ? partner.representativeIds : [partner.representativeId];
+      for (const repId of reps) {
+        try {
+          const rep = await interaction.client.users.fetch(repId);
+          // C4: Appeal button only in DM variant
+          await rep.send(infractionCard(infraction, partner, interaction.user.id, activeStrikes, STRIKE_LIMIT, false, true));
+        } catch { dmFailed = true; }
+      }
 
       const card = infractionCard(infraction, partner, interaction.user.id, activeStrikes, STRIKE_LIMIT, dmFailed, false);
       await interaction.editReply(card);
