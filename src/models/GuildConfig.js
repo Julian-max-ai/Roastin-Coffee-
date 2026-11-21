@@ -20,6 +20,7 @@ const GuildConfigSchema = new Schema({
   reviewQuestions:      { type: [String], default: ['How active was your group this month?', 'Any events hosted?', 'Any issues to report?'] },
   texts:                { type: Schema.Types.Mixed, default: {} },
   macros:               { type: [{ name: String, text: String }], default: [] },
+  awayList:             { type: [{ userId: String, from: String, to: String, reason: String }], default: [] },
   partnerListMessageIds:{ type: [String], default: [] },
   // legacy — kept to avoid data loss
   partnerListMessageId: { type: String, default: null },
