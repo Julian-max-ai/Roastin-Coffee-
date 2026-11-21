@@ -117,14 +117,17 @@ module.exports = {
 
       // C1: Escalation in log channel when strike limit reached
       if (type === 'strike' && activeStrikes >= STRIKE_LIMIT) {
-        const alreadyEscalated = await Infraction.findOne({
-          guildId, partnerId: partner._id.toString(), type: 'termination', removed: false, expired: false,
-        }).catch(() => null);
-        if (!alreadyEscalated && cfg?.logChannel) {
+        if (!partner.escalationPostedAt && cfg?.logChannel) {
           const ch = await interaction.client.channels.fetch(cfg.logChannel).catch(() => null);
           if (ch) {
             await ch.send(infractionEscalationCard(partner, activeStrikes, STRIKE_LIMIT, infraction._id)).catch(() => {});
+            await Partner.findByIdAndUpdate(partner._id, { escalationPostedAt: new Date() });
           }
+        }
+      } else if (activeStrikes < STRIKE_LIMIT) {
+        // Reset escalation flag when strikes drop below limit
+        if (partner.escalationPostedAt) {
+          await Partner.findByIdAndUpdate(partner._id, { escalationPostedAt: null });
         }
       }
 

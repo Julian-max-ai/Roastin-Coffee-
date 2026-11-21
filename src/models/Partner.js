@@ -16,6 +16,7 @@ const PartnerSchema = new Schema({
   lastInviteCheck:    { type: Date, default: null },
   anniversaryNotifiedYear: { type: Number, default: null },
   exchanges:              { type: [{ type: String, link: String, date: Date, by: String }], default: [] },
+  escalationPostedAt:     { type: Date, default: null },
 });
 
 PartnerSchema.index({ guildId: 1, name: 1 }, { unique: true, collation: { locale: 'en', strength: 2 } });
