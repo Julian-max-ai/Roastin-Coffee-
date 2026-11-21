@@ -44,4 +44,6 @@ client.once('ready', async () => {
   console.log(`Logged in as ${client.user.tag}`);
   const { startScheduler } = require('./scheduler');
   startScheduler(client);
+  const { runCatchup } = require('./scheduler/catchup');
+  await runCatchup(client).catch(err => console.error('[catchup]', err));
 });
