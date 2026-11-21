@@ -119,6 +119,10 @@ module.exports = {
       const card = infractionCard(infraction, partner, interaction.user.id, activeStrikes, STRIKE_LIMIT, dmFailed, false);
       await interaction.editReply(card);
 
+      // Send infraction notice to partner channel
+      const { sendToPartner } = require('../utils/partnerChannel');
+      await sendToPartner(interaction.guild, partner, cfg, card, { pingReps: true }).catch(() => {});
+
       // C1: Escalation in log channel when strike limit reached
       if (type === 'strike' && activeStrikes >= STRIKE_LIMIT) {
         if (!partner.escalationPostedAt && cfg?.logChannel) {

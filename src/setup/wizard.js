@@ -185,15 +185,32 @@ async function handleSetupAction(interaction, stepId, action) {
         return;
       }
       const created = [];
-      const ch1 = await guild.channels.create({ name: 'pr-log', type: ChannelType.GuildText, parent: category.id }).catch(() => null);
+      const staffRoles = [...(cfg?.prStaffRoles || []), ...(cfg?.adminRoles || [])];
+      // pr-log and ticket-transcripts: staff only
+      const ch1 = await guild.channels.create({ name: 'pr-log', type: ChannelType.GuildText, parent: category.id, permissionOverwrites: [
+        { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+        ...staffRoles.map(r => ({ id: r, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] })),
+        { id: interaction.client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.EmbedLinks] },
+      ] }).catch(() => null);
       if (ch1) { created.push(ch1.name); await GuildConfig.findOneAndUpdate({ guildId }, { logChannel: ch1.id }, { upsert: true }); }
-      const ch2 = await guild.channels.create({ name: 'ticket-transcripts', type: ChannelType.GuildText, parent: category.id }).catch(() => null);
+      const ch2 = await guild.channels.create({ name: 'ticket-transcripts', type: ChannelType.GuildText, parent: category.id, permissionOverwrites: [
+        { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+        ...staffRoles.map(r => ({ id: r, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] })),
+        { id: interaction.client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.EmbedLinks] },
+      ] }).catch(() => null);
       if (ch2) { created.push(ch2.name); await GuildConfig.findOneAndUpdate({ guildId }, { transcriptChannel: ch2.id }, { upsert: true }); }
-      const ch3 = await guild.channels.create({ name: 'review-results', type: ChannelType.GuildText, parent: category.id }).catch(() => null);
-      if (ch3) { created.push(ch3.name); await GuildConfig.findOneAndUpdate({ guildId }, { reviewChannel: ch3.id }, { upsert: true }); }
-      const ch4 = await guild.channels.create({ name: 'announcements', type: ChannelType.GuildText, parent: category.id }).catch(() => null);
+      // announcements and partner-list: everyone can read, only bot/staff can send
+      const ch4 = await guild.channels.create({ name: 'announcements', type: ChannelType.GuildText, parent: category.id, permissionOverwrites: [
+        { id: guild.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory], deny: [PermissionFlagsBits.SendMessages] },
+        ...staffRoles.map(r => ({ id: r, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] })),
+        { id: interaction.client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.EmbedLinks] },
+      ] }).catch(() => null);
       if (ch4) { created.push(ch4.name); await GuildConfig.findOneAndUpdate({ guildId }, { announcementChannel: ch4.id }, { upsert: true }); }
-      const ch5 = await guild.channels.create({ name: 'partner-list', type: ChannelType.GuildText, parent: category.id }).catch(() => null);
+      const ch5 = await guild.channels.create({ name: 'partner-list', type: ChannelType.GuildText, parent: category.id, permissionOverwrites: [
+        { id: guild.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory], deny: [PermissionFlagsBits.SendMessages] },
+        ...staffRoles.map(r => ({ id: r, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] })),
+        { id: interaction.client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.EmbedLinks] },
+      ] }).catch(() => null);
       if (ch5) { created.push(ch5.name); await GuildConfig.findOneAndUpdate({ guildId }, { partnerListChannel: ch5.id }, { upsert: true }); }
       await interaction.followUp({ content: `Created: ${created.join(', ')}`, ephemeral: true }).catch(() => {});
       await renderStep(interaction, stepId, true);

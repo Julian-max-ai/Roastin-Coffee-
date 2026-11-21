@@ -27,7 +27,6 @@ module.exports = {
     const cfg = await GuildConfig.findOne({ guildId });
     const missing = [];
     if (!cfg?.announcementChannel) missing.push('Announcement Channel');
-    if (!cfg?.reviewChannel) missing.push('Review Channel');
     if (!cfg?.logChannel) missing.push('Log Channel');
     if (!cfg?.ticketCategory) missing.push('Ticket Category');
     if (!cfg?.prStaffRoles?.length) missing.push('PR Staff Roles');
@@ -35,7 +34,7 @@ module.exports = {
     checks.push({ name: 'Config', ok: missing.length === 0, detail: missing.length ? `Missing: ${missing.join(', ')}` : 'All set' });
 
     // Bot permissions in configured channels
-    const channelsToCheck = [cfg?.announcementChannel, cfg?.reviewChannel, cfg?.logChannel, cfg?.partnerListChannel, cfg?.transcriptChannel].filter(Boolean);
+    const channelsToCheck = [cfg?.announcementChannel, cfg?.logChannel, cfg?.partnerListChannel, cfg?.transcriptChannel].filter(Boolean);
     let permIssues = [];
     for (const chId of channelsToCheck) {
       try {
@@ -56,8 +55,17 @@ module.exports = {
 
     // Partner channel missing
     const Partner = require('../models/Partner');
-    const missingChannels = await Partner.countDocuments({ guildId, channelMissing: true }).catch(() => 0);
-    checks.push({ name: 'Partner Channels', ok: missingChannels === 0, detail: missingChannels ? `${missingChannels} partner(s) with missing channel` : 'OK' });
+    // Partner channel check
+    const partners = await (require('../models/Partner')).find({ guildId }).catch(() => []);
+    const missingChannels = partners.filter(p => p.channelMissing).length;
+    const badChannels = [];
+    for (const p of partners) {
+      if (p.channelId) {
+        const ch = await client.channels.fetch(p.channelId).catch(() => null);
+        if (!ch) badChannels.push(p.name);
+      }
+    }
+    checks.push({ name: 'Partner Channels', ok: missingChannels === 0 && badChannels.length === 0, detail: missingChannels || badChannels.length ? `${missingChannels + badChannels.length} partner(s) with missing/inaccessible channel` : 'OK' });
 
     checks.push({ name: 'Bot Online', ok: true, detail: `Uptime ${Math.floor(process.uptime() / 60)} min` });
 

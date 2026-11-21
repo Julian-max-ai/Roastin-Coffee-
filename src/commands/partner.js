@@ -17,7 +17,10 @@ module.exports = {
       .addStringOption(o => o.setName('name').setDescription('Partner group name').setRequired(true))
       .addStringOption(o => o.setName('roblox').setDescription('Roblox group link').setRequired(true))
       .addStringOption(o => o.setName('discord').setDescription('Discord invite link').setRequired(true))
-      .addUserOption(o => o.setName('representative').setDescription('Partner representative').setRequired(true)))
+      .addUserOption(o => o.setName('representative').setDescription('Partner representative').setRequired(true))
+      .addChannelOption(o => o.setName('channel').setDescription('Partner channel (private)').setRequired(true))
+      .addUserOption(o => o.setName('representative2').setDescription('Second representative (optional)'))
+      .addUserOption(o => o.setName('representative3').setDescription('Third representative (optional)')))
     .addSubcommand(s => s.setName('remove').setDescription('Remove a partner.')
       .addStringOption(o => o.setName('name').setDescription('Partner name').setRequired(true).setAutocomplete(true)))
     .addSubcommand(s => s.setName('edit').setDescription('Edit a partner.')
@@ -47,15 +50,78 @@ module.exports = {
       const roblox = interaction.options.getString('roblox');
       const disc   = interaction.options.getString('discord');
       const rep    = interaction.options.getUser('representative');
+      const channel = interaction.options.getChannel('channel');
+      const rep2   = interaction.options.getUser('representative2');
+      const rep3   = interaction.options.getUser('representative3');
 
       if (!isRobloxLink(roblox)) return interaction.editReply(errorCard('Invalid Roblox link. Must contain `roblox.com/groups` or `roblox.com/communities`.'));
       if (!isDiscordInvite(disc)) return interaction.editReply(errorCard('Invalid Discord invite. Must be a `discord.gg/` or `discord.com/invite/` link.'));
-      if (await Partner.findOne({ guildId, name })) return interaction.editReply(errorCard(`A partner named **${name}** already exists.`));
+      if (await Partner.findOne({ guildId, name: { $regex: new RegExp(`^${name}$`, 'i') } })) return interaction.editReply(errorCard(`A partner named **${name}** already exists.`));
+      if (await Partner.findOne({ guildId, channelId: channel.id })) return interaction.editReply(errorCard('This channel is already assigned to another partner.'));
 
-      const partner = await Partner.create({ guildId, name, robloxLink: roblox, discordInvite: disc, representativeId: rep.id });
-      await interaction.editReply(partnerCard(partner));
+      const reps = [rep.id];
+      if (rep2) reps.push(rep2.id);
+      if (rep3) reps.push(rep3.id);
+
+      // Check bot permissions
+      const me = await interaction.guild.members.fetch(interaction.client.user.id).catch(() => null);
+      if (!me?.permissions.has(PermissionFlagsBits.ManageChannels) || !me?.permissions.has(PermissionFlagsBits.ManageRoles)) {
+        return interaction.editReply(errorCard('Bot needs Manage Channels and Manage Roles permissions.'));
+      }
+
+      // Set channel permissions
+      try {
+        await channel.permissionOverwrites.edit(interaction.guild.id, { ViewChannel: false });
+        for (const r of reps) {
+          await channel.permissionOverwrites.edit(r, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true, AttachFiles: true });
+        }
+        const cfg = await GuildConfig.findOne({ guildId });
+        for (const roleId of [...(cfg?.prStaffRoles || []), ...(cfg?.adminRoles || [])]) {
+          await channel.permissionOverwrites.edit(roleId, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true, AttachFiles: true, ManageMessages: true });
+        }
+        await channel.permissionOverwrites.edit(interaction.client.user.id, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true, EmbedLinks: true, ManageMessages: true });
+      } catch (err) {
+        return interaction.editReply(errorCard(`Failed to set channel permissions: ${err.message}`));
+      }
+
+      const partner = await Partner.create({
+        guildId, name, robloxLink: roblox, discordInvite: disc,
+        representativeId: rep.id, representativeIds: reps,
+        channelId: channel.id,
+      });
+
+      // Auto-assign rep role
+      const cfg = await GuildConfig.findOne({ guildId });
+      let roleAssigned = false;
+      let roleError = null;
+      if (cfg?.automation?.autoAssignRepRoles && cfg?.partnerRepRoles?.length) {
+        for (const repId of reps) {
+          try {
+            const member = await interaction.guild.members.fetch(repId);
+            await member.roles.add(cfg.partnerRepRoles);
+            roleAssigned = true;
+          } catch (err) {
+            roleError = err.message;
+          }
+        }
+      }
+
+      // Welcome card in partner channel
+      const { getText } = require('../utils/texts');
+      const welcomeDesc = getText(cfg, 'partner_welcome', { partner: name, rep: reps.map(r => `<@${r}>`).join(', '), reps: reps.map(r => `<@${r}>`).join(', ') });
+      const { card: cardFn, successCard: sc } = require('../ui');
+      const { ButtonBuilder, ButtonStyle, ActionRowBuilder } = require('discord.js');
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setLabel('Roblox Group').setStyle(ButtonStyle.Link).setURL(roblox),
+        new ButtonBuilder().setLabel('Discord Server').setStyle(ButtonStyle.Link).setURL(disc),
+      );
+      await channel.send(cardFn({ title: `🤝 Welcome, ${name}!`, description: welcomeDesc + '\n\nMonthly reviews, infraction notices and announcements for your partnership are posted here.', color: require('../theme').COLORS.primary, buttons: [new ButtonBuilder().setLabel('Roblox Group').setStyle(ButtonStyle.Link).setURL(roblox), new ButtonBuilder().setLabel('Discord Server').setStyle(ButtonStyle.Link).setURL(disc)], ephemeral: false })).catch(() => {});
+
       await updatePartnerList(interaction.client, guildId);
       await sendLog(interaction.client, guildId, `${EMOJI.partner} Partner Added`, `**${name}** added by <@${interaction.user.id}>`);
+
+      const resultDesc = `**Partner:** ${name}\n**Channel:** <#${channel.id}>\n**Reps:** ${reps.map(r => `<@${r}>`).join(', ')}\n**Rep Role:** ${roleAssigned ? '✅ Assigned' : '❌ ' + (roleError || 'Not configured')}`;
+      await interaction.editReply(successCard(resultDesc));
     }
 
     if (sub === 'remove') {

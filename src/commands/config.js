@@ -66,7 +66,6 @@ async function handleConfigInteraction(interaction) {
         new ActionRowBuilder().addComponents(
           new StringSelectMenuBuilder().setCustomId('cfg_ch_pick').setPlaceholder('Which channel to set?').addOptions([
             { label: '📢 Announcement Channel', value: 'announcementChannel' },
-            { label: '📋 Review Channel', value: 'reviewChannel' },
             { label: '📝 Log Channel', value: 'logChannel' },
             { label: '📃 Partner List Channel', value: 'partnerListChannel' },
           ])

@@ -53,32 +53,54 @@ module.exports = {
 async function sendMonthlyReviews(client, targetGuildId = null) {
   const configs = targetGuildId
     ? await GuildConfig.find({ guildId: targetGuildId })
-    : await GuildConfig.find({ reviewChannel: { $ne: null } });
+    : await GuildConfig.find({});
 
   let total = 0;
   for (const cfg of configs) {
     try {
-      if (!cfg.reviewChannel) continue;
-      const partners = await Partner.find({ guildId: cfg.guildId });
+      const partners = await Partner.find({ guildId: cfg.guildId, status: 'active' });
       if (!partners.length) continue;
-      const channel = await client.channels.fetch(cfg.reviewChannel).catch(() => null);
-      if (!channel) continue;
 
       const month = currentMonth();
 
       for (const partner of partners) {
-        const card = reviewCard(partner, month, cfg.reviewText, cfg.reviewMode, cfg.reviewLink);
-        // V2 fix: ping and card are separate messages
-        await channel.send({ content: `<@${partner.representativeId}>`, allowedMentions: { users: [partner.representativeId] } });
-        await channel.send(card);
-        total++;
-        // Create ReviewRequest to prevent duplicate sends
+        // Check if already sent this month
         const ReviewRequest = require('../models/ReviewRequest');
+        const existing = await ReviewRequest.findOne({ guildId: cfg.guildId, partnerId: partner._id, month }).catch(() => null);
+        if (existing) continue;
+
+        // Resolve partner channel
+        let channel = null;
+        if (partner.channelId) {
+          channel = await client.channels.fetch(partner.channelId).catch(() => null);
+        }
+        if (!channel) {
+          await Partner.findByIdAndUpdate(partner._id, { channelMissing: true }).catch(() => {});
+          if (cfg.logChannel) {
+            const logCh = await client.channels.fetch(cfg.logChannel).catch(() => {});
+            if (logCh) await logCh.send(errorCard(`Partner **${partner.name}** channel is missing or inaccessible.`)).catch(() => {});
+          }
+          continue;
+        }
+
+        const reps = partner.representativeIds?.length ? partner.representativeIds : [partner.representativeId];
+
+        // Ping all reps
+        await channel.send({ content: reps.map(r => `<@${r}>`).join(' '), allowedMentions: { users: reps } }).catch(() => {});
+
+        // Send review card with partner links
+        const card = reviewCard(partner, month, cfg.reviewText, cfg.reviewMode, cfg.reviewLink);
+        const msg = await channel.send(card).catch(() => null);
+
+        total++;
+
+        // Create ReviewRequest after successful send
         await ReviewRequest.findOneAndUpdate(
           { guildId: cfg.guildId, partnerId: partner._id, month },
-          { guildId: cfg.guildId, partnerId: partner._id, month, status: 'sent' },
+          { guildId: cfg.guildId, partnerId: partner._id, month, status: 'pending', channelId: channel.id, messageId: msg?.id, createdAt: new Date() },
           { upsert: true }
         ).catch(() => {});
+
         // Small pause to respect rate limits
         await new Promise(r => setTimeout(r, 500));
       }
@@ -94,15 +116,18 @@ async function handleReviewStart(interaction) {
   const partner   = await Partner.findById(partnerId).catch(() => null);
   if (!partner) return interaction.reply(errorCard('Partner not found.'));
 
-  if (interaction.user.id !== partner.representativeId) {
-    return interaction.reply(errorCard('Only the partner representative can complete this review.'));
+  const cfg = await GuildConfig.findOne({ guildId: interaction.guildId });
+  const reps = partner.representativeIds?.length ? partner.representativeIds : [partner.representativeId];
+  const isRep = reps.includes(interaction.user.id);
+  const isStaffUser = require('../utils/permissions').isStaff(interaction.member, cfg);
+  if (!isRep && !isStaffUser) {
+    return interaction.reply(errorCard('Only the partner representative or staff can complete this review.'));
   }
 
   const month = currentMonth();
   const existing = await ReviewSubmission.findOne({ guildId: interaction.guildId, partnerId, month });
   if (existing) return interaction.reply(errorCard('You have already submitted a review for this month.'));
 
-  const cfg       = await GuildConfig.findOne({ guildId: interaction.guildId });
   const questions = (cfg?.reviewQuestions || []).slice(0, 5);
 
   const modal = new ModalBuilder()
@@ -127,7 +152,6 @@ async function handleReviewSubmit(interaction) {
   const partner   = await Partner.findById(partnerId).catch(() => null);
   if (!partner) return interaction.reply(errorCard('Partner not found.'));
 
-  const cfg       = await GuildConfig.findOne({ guildId: interaction.guildId });
   const questions = (cfg?.reviewQuestions || []).slice(0, 5);
   const answers   = questions.map((_, i) => interaction.fields.getTextInputValue(`q${i}`));
   const month     = currentMonth();
@@ -141,13 +165,32 @@ async function handleReviewSubmit(interaction) {
 
   const card = reviewResultCard(partner, answers, questions, interaction.user.id);
 
-  if (cfg?.reviewChannel) {
-    const ch = await interaction.client.channels.fetch(cfg.reviewChannel).catch(() => null);
+  // Send to partner channel
+  if (partner.channelId) {
+    const ch = await interaction.client.channels.fetch(partner.channelId).catch(() => null);
     if (ch) await ch.send(card).catch(() => {});
   }
+  // Send copy to log channel
   if (cfg?.logChannel) {
     const ch = await interaction.client.channels.fetch(cfg.logChannel).catch(() => null);
     if (ch) await ch.send(card).catch(() => {});
+  }
+
+  // Update ReviewRequest to done
+  const ReviewRequest = require('../models/ReviewRequest');
+  await ReviewRequest.findOneAndUpdate(
+    { guildId: interaction.guildId, partnerId, month },
+    { status: 'done', completedAt: new Date(), completedBy: interaction.user.id }
+  ).catch(() => {});
+
+  // Edit original card if messageId exists
+  const rr = await ReviewRequest.findOne({ guildId: interaction.guildId, partnerId, month }).catch(() => null);
+  if (rr?.messageId && partner.channelId) {
+    const ch = await interaction.client.channels.fetch(partner.channelId).catch(() => null);
+    if (ch) {
+      const msg = await ch.messages.fetch(rr.messageId).catch(() => null);
+      if (msg) await msg.edit(card).catch(() => {});
+    }
   }
 
   await audit(interaction.guildId, interaction.user.id, 'review_submit', 'partner', partnerId, { month });

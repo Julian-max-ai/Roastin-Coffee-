@@ -28,8 +28,6 @@ async function reviewRemindersJob(client, setLastRun) {
       const submissions = await ReviewSubmission.find({ guildId: cfg.guildId, month }).catch(() => []);
       const doneIds = new Set(submissions.map(s => s.partnerId.toString()));
 
-      const channel = cfg.reviewChannel ? await client.channels.fetch(cfg.reviewChannel).catch(() => null) : null;
-
       for (const partner of partners) {
         try {
           const rr = reqMap.get(partner._id.toString());
@@ -38,6 +36,10 @@ async function reviewRemindersJob(client, setLastRun) {
           if (rr.status === 'done' || rr.status === 'skipped') continue;
 
           const reqAge = (now - new Date(rr.createdAt)) / (1000 * 60 * 60 * 24);
+
+          // Resolve partner channel
+          const partnerCh = partner.channelId ? await client.channels.fetch(partner.channelId).catch(() => null) : null;
+          if (!partnerCh) continue;
 
           if (reqAge >= overdueDays && !rr.overdueAt) {
             // Overdue: notify staff
@@ -54,10 +56,10 @@ async function reviewRemindersJob(client, setLastRun) {
                 })).catch(() => {});
               }
             }
-          } else if (channel && reqAge >= reminderDays && !rr.remindedAt) {
+          } else if (partnerCh && reqAge >= reminderDays && !rr.remindedAt) {
             // Reminder
             await ReviewRequest.findByIdAndUpdate(rr._id, { remindedAt: now });
-            await channel.send({ ...card({
+            await partnerCh.send({ ...card({
               title: `${EMOJI.reminder} Review Reminder`,
               description: getText(cfg, 'review_reminder', { partner: partner.name, rep: `<@${partner.representativeId}>`, month }) +
                 (cfg.reviewMode === 'link' && cfg.reviewLink

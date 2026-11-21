@@ -3,7 +3,7 @@ const { Schema, model } = require('mongoose');
 const GuildConfigSchema = new Schema({
   guildId:              { type: String, required: true, unique: true },
   announcementChannel:  { type: String, default: null },
-  reviewChannel:        { type: String, default: null },
+  reviewChannel:        { type: String, default: null }, // legacy - no longer used
   logChannel:           { type: String, default: null },
   partnerListChannel:   { type: String, default: null },
   ticketCategory:       { type: String, default: null },

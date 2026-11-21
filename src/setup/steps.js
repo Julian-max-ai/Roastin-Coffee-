@@ -30,7 +30,7 @@ const SETUP_STEPS = [
     why: 'Admin, PR Staff, and Partner Representative roles control who can do what.',
     how: ['Select existing roles or create new ones.', 'Admin: full access to config/setup.', 'Staff: partners, tickets, infractions.', 'Rep: reviews and events.'] },
   { id: 'channels', required: true, title: 'Channels',
-    why: 'Log, transcript, review, announcement, and partner list channels are needed.',
+    why: 'Log, transcript, announcement, and partner list channels are needed. Each partner gets their own channel via /partner add.',
     how: ['Click "Create all for me" to auto-create a "Roastin PR" category with 5 channels.', 'Or select existing channels.', 'Staff-only channels are hidden from @everyone.'] },
   { id: 'tickets', required: true, title: 'Tickets',
     why: 'Ticket system for support, partnerships, and reports.',
