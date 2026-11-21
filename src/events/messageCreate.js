@@ -37,6 +37,24 @@ module.exports = {
       }
     }
 
+    // Auto-withdraw close request if opener posts
+    const ticket = await Ticket.findById(entry.ticketId).catch(() => null);
+    if (ticket?.closeRequestedAt && message.author.id === ticket.userId) {
+      await Ticket.findByIdAndUpdate(entry.ticketId, {
+        closeRequestedAt: null,
+        closeRequestedBy: null,
+        closeRequestReason: null,
+        closeRequestMessageId: null,
+      }).catch(() => {});
+      // Edit the close request card if it exists
+      if (ticket.closeRequestMessageId) {
+        try {
+          const msg = await message.channel.messages.fetch(ticket.closeRequestMessageId).catch(() => null);
+          if (msg) await msg.edit({ content: '↩️ Close request withdrawn due to new activity.' }).catch(() => {});
+        } catch {}
+      }
+    }
+
     await Ticket.findByIdAndUpdate(entry.ticketId, update).catch(() => {});
   },
 };
