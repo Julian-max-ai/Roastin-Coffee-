@@ -9,6 +9,7 @@ const GuildConfigSchema = new Schema({
   ticketCategory:       { type: String, default: null },
   ticketCounter:        { type: Number, default: 0 },
   prStaffRoles:         { type: [String], default: [] },
+  adminRoles:           { type: [String], default: [] },
   partnerRepRoles:      { type: [String], default: [] },
   partnerListText:      { type: String, default: `## 🤝 Our Partners\n\n` },
   ticketPanelText:      { type: String, default: `## 🎫 Support & Partnership\n\nSelect an option below to open a ticket.` },
