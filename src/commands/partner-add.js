@@ -57,6 +57,8 @@ module.exports = {
       } catch {}
     }
 
+    const { updatePartnerList } = require('../commands/partner');
+    await updatePartnerList(interaction.client, guildId).catch(() => {});
     await require('../utils/audit').audit(guildId, interaction.user.id, 'partner_add', 'partner', partner._id.toString(), { name, channel: channel?.id });
 
     let desc = `**${name}** added.\n`;
