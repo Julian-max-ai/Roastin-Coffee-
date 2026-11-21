@@ -12,7 +12,6 @@ const { inviteHealthJob } = require('./jobs/inviteHealth');
 const { weeklyEventDigestJob } = require('./jobs/weeklyEventDigest');
 const { unclaimedSLAJob } = require('./jobs/unclaimedSLA');
 const { pendingRenamesJob } = require('./jobs/pendingRenames');
-const { run: runDashboardUpdate } = require('./jobs/dashboardUpdate');
 const { sendMonthlyReviews } = require('../commands/review');
 
 // In-memory last-run timestamps per job per guild (for /doctor)
@@ -96,11 +95,6 @@ function startScheduler(client) {
       console.log(`[cron] Monthly reviews sent: ${count}`);
     } catch {}
   }, { timezone: 'UTC' });
-
-  // Dashboard auto-update — every 5 minutes
-  cron.schedule('*/5 * * * *', async () => {
-    await runDashboardUpdate(client).catch(err => console.error('[dashboardUpdate]', err));
-  });
 
   console.log('[scheduler] All jobs scheduled.');
 }
