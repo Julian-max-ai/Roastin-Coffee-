@@ -1,9 +1,9 @@
 'use strict';
-const Ticket = require('../models/Ticket');
-const GuildConfig = require('../models/GuildConfig');
-const { card, logCard } = require('../ui');
-const { EMOJI, COLORS } = require('../theme');
-const { audit } = require('../utils/audit');
+const Ticket = require('../../models/Ticket');
+const GuildConfig = require('../../models/GuildConfig');
+const { card, logCard } = require('../../ui');
+const { EMOJI, COLORS } = require('../../theme');
+const { audit } = require('../../utils/audit');
 
 const SLEEP = 500;
 

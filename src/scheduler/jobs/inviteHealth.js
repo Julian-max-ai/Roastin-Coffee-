@@ -1,9 +1,9 @@
 'use strict';
-const Partner = require('../models/Partner');
-const GuildConfig = require('../models/GuildConfig');
-const { card, logCard } = require('../ui');
-const { EMOJI, COLORS } = require('../theme');
-const { audit } = require('../utils/audit');
+const Partner = require('../../models/Partner');
+const GuildConfig = require('../../models/GuildConfig');
+const { card, logCard } = require('../../ui');
+const { EMOJI, COLORS } = require('../../theme');
+const { audit } = require('../../utils/audit');
 
 const SLEEP = 500;
 

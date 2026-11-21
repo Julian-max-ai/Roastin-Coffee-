@@ -1,8 +1,8 @@
 'use strict';
-const EventRequest = require('../models/EventRequest');
-const GuildConfig = require('../models/GuildConfig');
-const { card } = require('../ui');
-const { EMOJI, COLORS } = require('../theme');
+const EventRequest = require('../../models/EventRequest');
+const GuildConfig = require('../../models/GuildConfig');
+const { card } = require('../../ui');
+const { EMOJI, COLORS } = require('../../theme');
 
 async function weeklyEventDigestJob(client, setLastRun) {
   const configs = await GuildConfig.find({ 'automation.weeklyEventDigest': true }).catch(() => []);
