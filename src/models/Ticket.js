@@ -29,6 +29,7 @@ const TicketSchema = new Schema({
   baseName:          { type: String, default: null },
   pendingRename:     { type: Boolean, default: false },
   closeRequestMessageId: { type: String, default: null },
+  notes:                { type: [{ text: String, authorId: String, createdAt: { type: Date, default: Date.now } }], default: [] },
   channelDeletedAt:     { type: Date, default: null },
 });
 
