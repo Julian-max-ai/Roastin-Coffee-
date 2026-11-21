@@ -49,11 +49,11 @@ async function handleConfigInteraction(interaction) {
     (interaction.isButton() && interaction.customId === 'cfg_setReviewLink') ||
     (interaction.isButton() && interaction.customId === 'cfg_setReviewQuestions');
 
-  if (!isModal && !opensModal) {
+  if (isModal) {
+    await interaction.deferReply();
+  } else if (!opensModal) {
     if (interaction.isButton() || interaction.isAnySelectMenu()) {
       await interaction.deferUpdate();
-    } else if (isModal) {
-      await interaction.deferReply();
     }
   }
 
@@ -162,6 +162,7 @@ async function handleConfigInteraction(interaction) {
     const current = a[key];
 
     if (isBool) {
+      await interaction.deferUpdate();
       const newVal = !current;
       await GuildConfig.findOneAndUpdate({ guildId }, { [`automation.${key}`]: newVal }, { upsert: true });
       const updated = await GuildConfig.findOne({ guildId });

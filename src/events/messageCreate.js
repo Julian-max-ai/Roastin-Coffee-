@@ -26,7 +26,7 @@ module.exports = {
     const update = { lastActivityAt: now };
 
     // Set firstStaffReplyAt when a staff member replies first
-    const member = message.guild.members.cache.get(message.author.id);
+    const member = message.member;
     if (member) {
       const cfg = await require('../models/GuildConfig').findOne({ guildId: message.guild.id }).catch(() => null);
       if (isStaff(member, cfg)) {

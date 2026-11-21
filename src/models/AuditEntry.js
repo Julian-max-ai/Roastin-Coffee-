@@ -2,7 +2,7 @@ const { Schema, model } = require('mongoose');
 
 const AuditEntrySchema = new Schema({
   guildId:    { type: String, required: true },
-  actorId:    { type: String, required: true },
+  actorId:    { type: String, default: 'system' },
   action:     { type: String, required: true },
   targetType: { type: String, default: null }, // 'partner'|'infraction'|'ticket'|'event'|'config'
   targetId:   { type: String, default: null },

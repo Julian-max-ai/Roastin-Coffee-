@@ -481,7 +481,8 @@ function doctorCard(checks) {
 function auditCard(entries, page, totalPages) {
   let desc = '';
   for (const e of entries) {
-    desc += `${ts(e.createdAt, 'R')} **${e.action}** by <@${e.actorId}>`;
+    const actor = e.actorId === 'system' ? 'System' : `<@${e.actorId}>`;
+    desc += `${ts(e.createdAt, 'R')} **${e.action}** by ${actor}`;
     if (e.targetType) desc += ` · ${e.targetType}`;
     desc += '\n';
   }
