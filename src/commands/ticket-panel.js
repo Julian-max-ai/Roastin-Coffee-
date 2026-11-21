@@ -354,7 +354,7 @@ async function handleTicketCloseRequest(interaction) {
   // Send close request card in channel
   const cardPayload = card({
     title: '🔒 Close Request',
-    description: `A staff member has requested to close this ticket.\n\n**Requested by:** <@${interaction.user.id}>${reason ? `\n**Reason:** ${reason}` : ''}\n\nWill be auto-closed <t:${Math.floor(closeAt.getTime() / 1000)}:R> if no response.`,
+    description: getText(cfg, 'ticket_close_request', { staff: `<@${interaction.user.id}>`, user: `<@${ticket.userId}>`, ticket: ticket._id, reason: reason || '' }) + `\n\n**Requested by:** <@${interaction.user.id}>${reason ? `\n**Reason:** ${reason}` : ''}\n\nWill be auto-closed <t:${Math.floor(closeAt.getTime() / 1000)}:R> if no response.`,
     color: COLORS.warning,
     buttons: [
       new ButtonBuilder().setCustomId(`ticket_agree_close:${ticket._id}`).setLabel('Close').setStyle(ButtonStyle.Danger),
