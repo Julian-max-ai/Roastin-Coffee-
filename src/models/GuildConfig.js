@@ -7,6 +7,7 @@ const GuildConfigSchema = new Schema({
   logChannel:           { type: String, default: null },
   partnerListChannel:   { type: String, default: null },
   ticketCategory:       { type: String, default: null },
+  ticketCounter:        { type: Number, default: 0 },
   prStaffRoles:         { type: [String], default: [] },
   partnerRepRoles:      { type: [String], default: [] },
   partnerListText:      { type: String, default: `## 🤝 Our Partners\n\n` },
