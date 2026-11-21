@@ -97,7 +97,7 @@ module.exports = {
     }
 
     if (sub === 'list') {
-      const all = await Partner.find({ guildId });
+      const all = await Partner.find({ guildId, status: { $ne: 'removed' } });
       if (!all.length) return interaction.editReply(errorCard('No partners found.'));
       const { items, totalPages, page, row } = paginate(all, 0, PAGE_SIZE, 'partners');
       let desc = `**${all.length} active partner(s)**\n\n`;
