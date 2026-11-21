@@ -106,6 +106,18 @@ async function route(interaction, client) {
   if (interaction.isButton()) {
     const id = interaction.customId;
 
+    // Setup wizard buttons
+    if (id.startsWith('setup:')) {
+      const parts = id.split(':');
+      const step = parts[1];
+      const action = parts[2];
+      await interaction.deferUpdate().catch(() => {});
+      // Simple navigation: just re-run setup start
+      const { execute } = require('../commands/setup');
+      await execute(interaction).catch(err => console.error('[setup]', err));
+      return;
+    }
+
     // Pagination: page:<ctx>:<prev|next>:<page>
     if (id.startsWith('page:')) {
       const parts = id.split(':'); // page, ctx, prev|next, page
