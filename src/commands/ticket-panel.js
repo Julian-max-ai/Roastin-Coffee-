@@ -304,11 +304,21 @@ async function handleTicketOpen(interaction) {
   try {
     await ticketChannel.send({ content: pingText, allowedMentions: { users: [user.id], roles: staffRoles } });
     const welcomeMsg = await ticketChannel.send(ticketWelcomeCard(type, user));
+    // Assign ticket number
+    const cfgForNum = await GuildConfig.findOneAndUpdate(
+      { guildId: guild.id },
+      { $inc: { ticketCounter: 1 } },
+      { upsert: true, new: true }
+    );
+    const ticketNumber = cfgForNum.ticketCounter;
+
     const ticketDoc = await Ticket.create({
       guildId: guild.id,
       channelId: ticketChannel.id,
       userId: user.id,
       typeId,
+      ticketNumber,
+      baseName: `${typeId}-${user.username?.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8) || 'user'}`,
       lastActivityAt: new Date(),
       welcomeMessageId: welcomeMsg.id,
     });
