@@ -247,6 +247,10 @@ async function handleTicketOpen(interaction) {
   if (!type) return interaction.editReply(errorCard('This ticket type is not configured. Ask an admin to run `/ticket setup`.'));
 
   const cfg = await GuildConfig.findOne({ guildId: guild.id });
+  // Blacklist check
+  const blacklist = cfg?.ticketBlacklist || [];
+  const blEntry = blacklist.find(b => b.userId === user.id);
+  if (blEntry) return interaction.editReply(errorCard(`You are blacklisted from opening tickets. Reason: ${blEntry.reason}`));
   const maxOpen = cfg?.automation?.maxOpenTicketsPerUser ?? 3;
 
   // A9: Per-type limit + total limit
