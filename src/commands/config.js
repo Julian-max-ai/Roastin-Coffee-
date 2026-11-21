@@ -51,7 +51,7 @@ async function handleConfigInteraction(interaction) {
     (interaction.isButton() && interaction.customId === 'cfg_setReviewQuestions');
 
   if (isModal) {
-    await interaction.deferReply();
+    await interaction.deferReply({ ephemeral: true });
   } else if (!opensModal) {
     if (interaction.isButton() || interaction.isAnySelectMenu()) {
       await interaction.deferUpdate();
