@@ -37,7 +37,10 @@ module.exports = {
     let startsAt = null;
     if (timeStr) {
       const parsed = new Date(timeStr.replace(' ', 'T') + ':00Z');
-      if (!isNaN(parsed.getTime())) startsAt = parsed;
+      if (isNaN(parsed.getTime())) {
+        return interaction.reply(errorCard('Ungültiges Zeitformat. Bitte verwende: YYYY-MM-DD HH:mm (UTC), z.B. 2025-07-20 15:00'));
+      }
+      startsAt = parsed;
     }
 
     const req = await EventRequest.create({
@@ -108,26 +111,36 @@ async function handleEventDecision(interaction) {
 async function handleEventDenyModal(interaction) {
   const reqId  = interaction.customId.replace('event_deny_reason:', '');
   const reason = interaction.fields.getTextInputValue('reason') || null;
-  const { guildId } = interaction;
+  const { guildId, member } = interaction;
+
+  const cfg = await GuildConfig.findOne({ guildId });
+  if (!require('../utils/permissions').isStaff(member, cfg)) {
+    return interaction.reply({ content: 'Keine Berechtigung.', ephemeral: true });
+  }
+
+  const req = await EventRequest.findOne({ _id: reqId, guildId });
+  if (!req || req.status !== 'pending') {
+    return interaction.reply({ content: 'Request nicht gefunden oder bereits entschieden.', ephemeral: true });
+  }
 
   await EventRequest.findByIdAndUpdate(reqId, { status: 'denied', decidedBy: interaction.user.id, decidedAt: new Date(), denyReason: reason });
-  const req = await EventRequest.findById(reqId);
+  const updatedReq = await EventRequest.findById(reqId);
 
   try {
-    const user = await interaction.client.users.fetch(req.submitterId);
+    const user = await interaction.client.users.fetch(updatedReq.submitterId);
     await user.send(errorCard(
-      `Your event request **${req.title}** was denied by <@${interaction.user.id}>.` +
+      `Your event request **${updatedReq.title}** was denied by <@${interaction.user.id}>.` +
       (reason ? `\n\n**Reason:** ${reason}` : ''), false
     ));
   } catch {}
 
   // V2 fix: update to a log card — no components:[]
   await interaction.update(logCard(
-    `${EMOJI.event} Event Denied — ${req.title}`,
+    `${EMOJI.event} Event Denied — ${updatedReq.title}`,
     `Denied by <@${interaction.user.id}>${reason ? `\n**Reason:** ${reason}` : ''}`
   ));
 
-  await audit(guildId, interaction.user.id, 'event_deny', 'event', reqId, { title: req.title, reason });
+  await audit(guildId, interaction.user.id, 'event_deny', 'event', reqId, { title: updatedReq.title, reason });
 }
 
 async function handleEventInterest(interaction) {
