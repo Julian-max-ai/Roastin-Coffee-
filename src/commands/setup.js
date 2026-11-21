@@ -21,6 +21,7 @@ module.exports = {
           { name: 'Infraktionen', value: 'infractions' },
           { name: 'Events', value: 'events' },
           { name: 'Automation', value: 'automation' },
+          { name: 'Dweeb', value: 'dweeb' },
         ))),
 
   async execute(interaction) {
@@ -34,23 +35,24 @@ module.exports = {
       let desc = '**Setup-Fortschritt:**\n\n';
       for (const step of steps) {
         const done = progress[step] === true;
-        desc += `${done ? '✅' : '⚠️'} ${step}\n`;
+        desc += `${done ? '✅' : '⬜'} ${step}\n`;
       }
-      desc += '\nUse `/setup help topic:<name>` for explanations.';
+      desc += '\nUse `/setup help topic:<name>` for detailed explanations.\nMark steps complete via /config.';
       await interaction.editReply(infoCard('Setup', desc, true));
     }
 
     if (sub === 'help') {
       const topic = interaction.options.getString('topic');
       const helpTexts = {
-        rights: 'Rechte: 4 Stufen (PUBLIC, PARTNER_REP, STAFF, ADMIN). Konfiguriere unter /config → Rechte.',
-        channels: 'Channels: Log, Transcript, Review, Announcement, Partner-Liste, Event. Konfiguriere unter /config → Channels.',
-        tickets: 'Tickets: Kategorie, Typen, Claim-Umbenennung, Auto-Close. Konfiguriere unter /config → Tickets.',
-        partners: 'Partner: Eigener Channel pro Partner, mehrere Reps. /partner add.',
-        reviews: 'Reviews: Monatlicher Ablauf, Fragen, Versandtag. /config → Reviews.',
-        infractions: 'Infraktionen: Warning/Strike/Termination, Ablaufzeiten. /config → Infraktionen.',
-        events: 'Events: Anfragen, Genehmigung, Reminder. /config → Events.',
-        automation: 'Automation: Inactivity, Auto-Close, Reminders. /config → Automation.',
+        rights: 'Rights: 4 levels (PUBLIC, PARTNER_REP, STAFF, ADMIN). Configure under /config → Rights. Admin roles get full access, PR staff manage partners/tickets, partner reps manage their own partner.',
+        channels: 'Channels: Log (audit/infraction logs), Transcript (ticket transcripts), Review (monthly reviews), Announcement (PR posts), Partner List (partner overview), Event (event requests). Configure under /config → Channels.',
+        tickets: 'Tickets: Category for ticket channels, types with custom welcome text/questions/staff roles, claim renaming, auto-close after inactivity. Configure under /config → Tickets. Use /ticket setup to configure types.',
+        partners: 'Partners: Each partner gets their own channel. Multiple reps per partner. Use /partner add to create. Channel auto-created if configured.',
+        reviews: 'Reviews: Monthly review cycle. Configure questions under /review-questions. Reviews sent on configured day. Configure under /config → Reviews.',
+        infractions: 'Infractions: Warning/Strike/Termination. Strikes expire after configured days. Escalation card posted when strike limit reached. Appeals via button. Configure under /config → Infractions.',
+        events: 'Events: Request/approve/deny flow with reminders. Approved events posted to announcement channel. Configure under /config → Events.',
+        automation: 'Automation: Inactivity reminders, auto-close, SLA alerts, pending renames. Configure under /config → Automation.',
+        dweeb: 'Dweeb: A dweeb is a lightweight bot helper that handles background tasks like message tracking and auto-responses. No configuration needed — runs automatically.',
       };
       await interaction.editReply(infoCard(`Setup Help: ${topic}`, helpTexts[topic] || 'No help available.', true));
     }
