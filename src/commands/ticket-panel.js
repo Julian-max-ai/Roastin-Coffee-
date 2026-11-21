@@ -484,8 +484,162 @@ async function handleTicketAgreeClose(interaction) {
   await interaction.followUp(successCard(`Ticket closed. Deleting channel shortly.`)).catch(() => {});
 }
 
+async function handleTicketClaim(interaction) {
+  await interaction.deferUpdate();
+  const { member, channel, guild } = interaction;
+  const cfg = await GuildConfig.findOne({ guildId: guild.id });
+  if (!isStaff(member, cfg)) {
+    return interaction.followUp(errorCard('Only staff can claim tickets.'));
+  }
+
+  // A1: Prevent double-claim — claimedBy must be null
+  const ticket = await Ticket.findOneAndUpdate(
+    { guildId: guild.id, channelId: channel.id, status: 'open', claimedBy: null },
+    { claimedBy: interaction.user.id },
+    { new: true }
+  );
+  if (!ticket) {
+    const existing = await Ticket.findOne({ guildId: guild.id, channelId: channel.id, status: 'open' });
+    if (existing && existing.claimedBy) {
+      return interaction.followUp(errorCard(`Already claimed by <@${existing.claimedBy}>.`));
+    }
+    return interaction.followUp(errorCard('Ticket not found.'));
+  }
+
+  const type = await TicketType.findOne({ guildId: guild.id, customId: ticket.typeId });
+  if (!type) return interaction.followUp(errorCard('Ticket type not found.'));
+
+  // A1: Update welcome card + send feedback to channel
+  await interaction.editReply(ticketWelcomeCard(type, { id: ticket.userId }, interaction.user.id, ticket.priority));
+
+  if (ticket.welcomeMessageId) {
+    try {
+      const welcomeMsg = await channel.messages.fetch(ticket.welcomeMessageId).catch(() => null);
+      if (welcomeMsg) {
+        await welcomeMsg.edit(ticketWelcomeCard(type, { id: ticket.userId }, interaction.user.id, ticket.priority)).catch(() => {});
+      }
+    } catch {}
+  }
+
+  try {
+    await channel.send({ ...card({
+      title: `${EMOJI.claim} Ticket Claimed`,
+      description: `🙋 <@${interaction.user.id}> has claimed this ticket and will assist you shortly.\nPing: <@${ticket.userId}>`,
+      color: COLORS.primary,
+      buttons: [],
+      ephemeral: false,
+    }), allowedMentions: { users: [ticket.userId] } }).catch(() => {});
+  } catch {}
+
+  await audit(guild.id, interaction.user.id, 'ticket_claim', 'ticket', ticket._id.toString());
+}
+
+async function handleTicketRelease(interaction) {
+  await interaction.deferUpdate();
+  const { member, channel, guild } = interaction;
+  const cfg = await GuildConfig.findOne({ guildId: guild.id });
+  if (!isStaff(member, cfg)) {
+    return interaction.followUp(errorCard('Only staff can release tickets.'));
+  }
+
+  // A1: Staff with Manage Guild can release any claim
+  const isManageGuild = interaction.member.permissions.has(PermissionFlagsBits.ManageGuild);
+  const filter = isManageGuild
+    ? { guildId: guild.id, channelId: channel.id, status: 'open', claimedBy: { $ne: null } }
+    : { guildId: guild.id, channelId: channel.id, status: 'open', claimedBy: interaction.user.id };
+
+  const ticket = await Ticket.findOneAndUpdate(filter, { claimedBy: null }, { new: true });
+  if (!ticket) {
+    const existing = await Ticket.findOne({ guildId: guild.id, channelId: channel.id, status: 'open' });
+    if (!existing) return interaction.followUp(errorCard('Ticket not found.'));
+    if (!existing.claimedBy) return interaction.followUp(errorCard('This ticket is not claimed.'));
+    return interaction.followUp(errorCard('You have not claimed this ticket.'));
+  }
+
+  const type = await TicketType.findOne({ guildId: guild.id, customId: ticket.typeId });
+  if (!type) return interaction.followUp(errorCard('Ticket type not found.'));
+
+  await interaction.editReply(ticketWelcomeCard(type, { id: ticket.userId }, null, ticket.priority));
+
+  if (ticket.welcomeMessageId) {
+    try {
+      const welcomeMsg = await channel.messages.fetch(ticket.welcomeMessageId).catch(() => null);
+      if (welcomeMsg) {
+        await welcomeMsg.edit(ticketWelcomeCard(type, { id: ticket.userId }, null, ticket.priority)).catch(() => {});
+      }
+    } catch {}
+  }
+
+  try {
+    await channel.send({ ...card({
+      title: `${EMOJI.release} Ticket Unassigned`,
+      description: `This ticket is unassigned again. A staff member will pick it up shortly.\nPing: <@${ticket.userId}>`,
+      color: COLORS.primary,
+      buttons: [],
+      ephemeral: false,
+    }), allowedMentions: { users: [ticket.userId] } }).catch(() => {});
+  } catch {}
+
+  await audit(guild.id, interaction.user.id, 'ticket_release', 'ticket', ticket._id.toString());
+}
+
+async function handleTicketRate(interaction) {
+  const parts = interaction.customId.split(':'); // ticket_rate:ID:STARS
+  const ticketId = parts[1];
+  const stars    = parseInt(parts[2], 10);
+
+  const ticket = await Ticket.findById(ticketId);
+  if (!ticket) return interaction.update(errorCard('Ticket not found.'));
+  if (ticket.ratingSentAt) return interaction.update(errorCard('You have already rated this ticket.'));
+
+  await Ticket.findByIdAndUpdate(ticketId, { rating: stars, ratingSentAt: new Date() });
+
+  // Ask for optional feedback
+  const modal = new ModalBuilder().setCustomId(`ticket_rate_feedback:${ticketId}:${stars}`).setTitle('Optional Feedback');
+  modal.addComponents(new ActionRowBuilder().addComponents(
+    new TextInputBuilder().setCustomId('feedback').setLabel('Any additional feedback? (optional)').setStyle(TextInputStyle.Paragraph).setRequired(false)
+  ));
+  return interaction.showModal(modal);
+}
+
+async function handleTicketRateFeedbackModal(interaction) {
+  const parts    = interaction.customId.split(':');
+  const ticketId = parts[1];
+  const stars    = parseInt(parts[2], 10);
+  const feedback = interaction.fields.getTextInputValue('feedback') || null;
+
+  const ticket = await Ticket.findByIdAndUpdate(ticketId, { ratingFeedback: feedback }, { new: true });
+
+  if (ticket) {
+    const GuildConfig = require('../models/GuildConfig');
+    const cfg = await GuildConfig.findOne({ guildId: ticket.guildId });
+    if (cfg?.logChannel) {
+      const logCh = await interaction.client.channels.fetch(cfg.logChannel).catch(() => null);
+      if (logCh) {
+        await logCh.send(logCard(
+          `${EMOJI.star} Ticket Rated`,
+          `Ticket \`${ticketId}\` rated **${'⭐'.repeat(stars)}** by <@${interaction.user.id}>${feedback ? `\n> ${feedback}` : ''}`
+        )).catch(() => {});
+      }
+    }
+  }
+
+  return interaction.reply(successCard(`Thank you for your feedback! You rated this ticket **${'⭐'.repeat(stars)}**`.replace('ephemeral', '')));
+}
+
 module.exports.handleTicketClose            = handleTicketClose;
 module.exports.handleTicketCloseRequest      = handleTicketCloseRequest;
+module.exports.handleTicketConfirmClose     = handleTicketConfirmClose;
+module.exports.handleTicketCancelClose      = handleTicketCancelClose;
+module.exports.handleTicketKeepOpen         = handleTicketKeepOpen;
+module.exports.handleTicketAgreeClose       = handleTicketAgreeClose;
+module.exports.handleTicketClaim            = handleTicketClaim;
+module.exports.handleTicketRelease          = handleTicketRelease;
+module.exports.handleTicketRate             = handleTicketRate;
+module.exports.handleTicketRateFeedbackModal = handleTicketRateFeedbackModal;
+module.exports.handleTicketEditModal        = handleTicketEditModal;
+module.exports.handleTicketOpen             = handleTicketOpen;
+module.exports.handleTicketClose            = handleTicketClose;
 module.exports.handleTicketConfirmClose     = handleTicketConfirmClose;
 module.exports.handleTicketCancelClose      = handleTicketCancelClose;
 module.exports.handleTicketKeepOpen         = handleTicketKeepOpen;
