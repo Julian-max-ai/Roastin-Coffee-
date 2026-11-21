@@ -11,6 +11,7 @@ const { anniversariesJob } = require('./jobs/anniversaries');
 const { inviteHealthJob } = require('./jobs/inviteHealth');
 const { weeklyEventDigestJob } = require('./jobs/weeklyEventDigest');
 const { unclaimedSLAJob } = require('./jobs/unclaimedSLA');
+const { pendingRenamesJob } = require('./jobs/pendingRenames');
 const { sendMonthlyReviews } = require('../commands/review');
 
 // In-memory last-run timestamps per job per guild (for /doctor)
@@ -80,6 +81,11 @@ function startScheduler(client) {
   // Unclaimed SLA check — every 5 minutes
   cron.schedule('*/5 * * * *', async () => {
     await unclaimedSLAJob(client, setLastRun);
+  });
+
+  // Pending renames — every 5 minutes
+  cron.schedule('*/5 * * * *', async () => {
+    await pendingRenamesJob(client, setLastRun);
   });
 
   // Monthly review cron (existing)
