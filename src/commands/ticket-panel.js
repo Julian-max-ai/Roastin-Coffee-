@@ -154,17 +154,15 @@ module.exports = {
       const level = interaction.options.getString('level');
       await Ticket.findByIdAndUpdate(ticket._id, { priority: level });
 
-      let nameChanged = false;
+      const type = await TicketType.findOne({ guildId, customId: ticket.typeId });
+      const { syncTicketChannel } = require('../utils/ticketNaming');
       try {
-        const baseName = interaction.channel.name.replace(/^(?:🔵|⚪|🟡|🔴)-/u, '');
-        await interaction.channel.setName(`${PRIORITY_EMOJI[level]}-${baseName}`.slice(0, 100));
-        nameChanged = true;
+        await syncTicketChannel(interaction.channel, await Ticket.findById(ticket._id), type?.customId || 'ticket');
       } catch (err) {
         console.error('[ticket priority] channel rename failed:', err.message);
       }
 
       // Update welcome card with new priority color
-      const type = await TicketType.findOne({ guildId, customId: ticket.typeId });
       if (type && ticket.welcomeMessageId) {
         try {
           const welcomeMsg = await interaction.channel.messages.fetch(ticket.welcomeMessageId).catch(() => null);
@@ -174,10 +172,7 @@ module.exports = {
         } catch {}
       }
 
-      if (nameChanged) {
-        return interaction.editReply(successCard(`Priority set to **${level}**. Channel name updated.`));
-      }
-      return interaction.editReply(successCard(`Priority set to **${level}**. (Channel name could not be updated — Discord rate limit may apply.)`));
+      return interaction.editReply(successCard(`Priority set to **${level}**.`));
     }
 
     if (sub === 'close-request') {
@@ -191,6 +186,11 @@ module.exports = {
         closeRequestReason: reason,
       });
       await audit(guildId, interaction.user.id, 'ticket_close_request', 'ticket', ticket._id.toString(), { reason });
+
+      // Sync channel name (yellow emoji for close request)
+      const type = await TicketType.findOne({ guildId, customId: ticket.typeId });
+      const { syncTicketChannel } = require('../utils/ticketNaming');
+      await syncTicketChannel(interaction.channel, await Ticket.findById(ticket._id), type?.customId || 'ticket').catch(() => {});
 
       // Notify ticket creator
       const creator = interaction.client.users.cache.get(ticket.userId);
