@@ -31,9 +31,10 @@ async function ticketInactivityJob(client, setLastRun) {
           if (!channel) continue;
 
           const creator = await client.users.fetch(ticket.userId).catch(() => null);
+          const { getText } = require('../../utils/texts');
           await channel.send({ ...card({
             title: `${EMOJI.reminder} Ticket Inactivity Reminder`,
-            description: `This ticket has been inactive for ${hours} hours. It will be auto-closed after ${cfg.automation.ticketAutoCloseHours ?? 48} hours of inactivity.` +
+            description: getText(cfg, 'ticket_inactivity_reminder', { user: `<@${ticket.userId}>`, ticket: ticket._id, hours }) +
               (creator ? `\nPing: <@${ticket.userId}>` : ''),
             color: COLORS.warning,
             buttons: [],
