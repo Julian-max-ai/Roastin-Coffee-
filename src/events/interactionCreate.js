@@ -112,9 +112,8 @@ async function route(interaction, client) {
       const step = parts[1];
       const action = parts[2];
       await interaction.deferUpdate().catch(() => {});
-      // Simple navigation: just re-run setup start
-      const { execute } = require('../commands/setup');
-      await execute(interaction).catch(err => console.error('[setup]', err));
+      const { handleSetupAction } = require('../setup/wizard');
+      await handleSetupAction(interaction, step, action).catch(err => console.error('[setup]', err));
       return;
     }
 
