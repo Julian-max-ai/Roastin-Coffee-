@@ -11,7 +11,7 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addSubcommand(s => s.setName('add').setDescription('Blacklist user.')
       .addUserOption(o => o.setName('user').setDescription('User').setRequired(true))
-      .addStringOption(o => o.setName('reason').setDescription('Grund').setRequired(true)))
+      .addStringOption(o => o.setName('reason').setDescription('Reason').setRequired(true)))
     .addSubcommand(s => s.setName('remove').setDescription('Remove user from blacklist.')
       .addUserOption(o => o.setName('user').setDescription('User').setRequired(true)))
     .addSubcommand(s => s.setName('list').setDescription('Show blacklist.')),

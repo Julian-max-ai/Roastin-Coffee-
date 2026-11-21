@@ -18,7 +18,7 @@ module.exports = {
       `• \`/partner\` — Partner-Management\n` +
       `• \`/infraction\` — Infraktionen\n` +
       `• \`/review\` — Monatliche Reviews\n` +
-      `• \`/event-request\` — Event-Anfragen\n` +
+      `• \`/event-request\` — Event Requests\n` +
       `• \`/stats\` — Statistiken\n` +
       `• \`/audit\` — Audit-Log\n` +
       `• \`/export\` — Daten-Export\n` +

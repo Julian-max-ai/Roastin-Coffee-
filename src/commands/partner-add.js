@@ -61,7 +61,7 @@ module.exports = {
 
     let desc = `**${name}** added.\n`;
     desc += `Channel: ${channel ? `<#${channel.id}>` : 'No channel'}\n`;
-    desc += `Rep-Rolle: ${roleAssigned ? '✅' : '❌'}`;
+    desc += `Rep Role: ${roleAssigned ? '✅' : '❌'}`;
     await interaction.editReply(successCard(desc));
   },
 };

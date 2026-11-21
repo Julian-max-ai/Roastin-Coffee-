@@ -252,7 +252,7 @@ function ticketWelcomeCard(type, user, claimedBy = null, priority = 'normal') {
     ? new ButtonBuilder().setCustomId('ticket_release').setLabel('Release').setStyle(ButtonStyle.Secondary).setEmoji(EMOJI.release)
     : new ButtonBuilder().setCustomId('ticket_claim').setLabel('Claim').setStyle(ButtonStyle.Secondary).setEmoji(EMOJI.claim);
 
-  const closeRequestBtn = new ButtonBuilder().setCustomId('ticket_close_request').setLabel('Close anfragen').setStyle(ButtonStyle.Secondary).setEmoji(EMOJI.close);
+  const closeRequestBtn = new ButtonBuilder().setCustomId('ticket_close_request').setLabel('Request Close').setStyle(ButtonStyle.Secondary).setEmoji(EMOJI.close);
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('ticket_close').setLabel('Close Ticket').setStyle(ButtonStyle.Danger).setEmoji(EMOJI.close),
     claimBtn,

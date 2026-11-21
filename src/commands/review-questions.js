@@ -10,11 +10,11 @@ module.exports = {
     .setDescription('Review-Fragen verwalten.')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addSubcommand(s => s.setName('list').setDescription('Fragen anzeigen.'))
-    .addSubcommand(s => s.setName('add').setDescription('Frage hinzufügen.')
+    .addSubcommand(s => s.setName('add').setDescription('Add question.')
       .addStringOption(o => o.setName('question').setDescription('Frage').setRequired(true)))
     .addSubcommand(s => s.setName('remove').setDescription('Frage entfernen.')
       .addIntegerOption(o => o.setName('index').setDescription('Index (1-based)').setRequired(true)))
-    .addSubcommand(s => s.setName('reset').setDescription('Auf Standard zurücksetzen.')),
+    .addSubcommand(s => s.setName('reset').setDescription('Reset to defaults.')),
   async execute(interaction) {
     await interaction.deferReply({ ephemeral: true });
     const { guildId } = interaction;

@@ -11,7 +11,7 @@ module.exports = {
     .addSubcommand(s => s.setName('set').setDescription('Set absence.')
       .addStringOption(o => o.setName('from').setDescription('Von (YYYY-MM-DD)').setRequired(true))
       .addStringOption(o => o.setName('to').setDescription('Bis (YYYY-MM-DD)').setRequired(true))
-      .addStringOption(o => o.setName('reason').setDescription('Grund').setRequired(false)))
+      .addStringOption(o => o.setName('reason').setDescription('Reason').setRequired(false)))
     .addSubcommand(s => s.setName('clear').setDescription('Clear absence.')),
   async execute(interaction) {
     await interaction.deferReply({ ephemeral: true });
