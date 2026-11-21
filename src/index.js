@@ -29,8 +29,10 @@ process.on('unhandledRejection', err => console.error('[unhandledRejection]', er
 process.on('uncaughtException',  err => console.error('[uncaughtException]', err));
 
 mongoose.connect(process.env.MONGODB_URI)
-  .then(() => {
+  .then(async () => {
     console.log('Connected to MongoDB Atlas');
+    const { runMigrations } = require('./utils/migration');
+    await runMigrations().catch(err => console.error('[migration]', err));
     client.login(process.env.DISCORD_TOKEN);
   })
   .catch(err => {

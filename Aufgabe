@@ -1,0 +1,136 @@
+Roastin Coffee PR Bot: Ist-Zustand, offene Fehler, Weiterarbeit
+An die KI, die jetzt weiterarbeitet: Eine vorherige KI hat dieses Projekt mitten in einer Überarbeitung abgebrochen (Limit erreicht). Sie hatte gerade begonnen, Bugfixes und neue Features einzubauen. Dieses Dokument beschreibt von Grund auf, was im Bot aktuell steckt, welche Fehler ich beim Lesen des gesamten Codes gefunden habe und was noch fehlt.
+Wichtigste Regel: Das bestehende System bleibt, wie es ist. Architektur, Design (src/theme/, src/ui/), Befehlsnamen, Datenbank-Schemas, customIds und Workflows werden beibehalten. Du setzt nichts neu auf und baust nichts um, sondern machst genau da weiter, wo die vorherige KI aufgehört hat: erst die Fehler beheben (Teil 3), dann die offenen Erweiterungen umsetzen (Teil 4).
+Vor dem Start: Der Stand unten entspricht dem GitHub-Commit e18af54 ("Fix: correct defer/reply strategy per command type"). Die vorherige KI hat danach vielleicht lokal weitergearbeitet, ohne zu pushen. Führe zuerst git status und git diff aus. Wenn es lokale, nicht committete Änderungen gibt, prüfe und übernimm sie (nicht überschreiben) und gleiche sie mit diesem Dokument ab. Wenn dieses Dokument dem lokalen Code widerspricht, gilt der lokale Code, und du weist kurz darauf hin.
+1. Überblick
+Zweck: Discord-PR-Bot für die Roblox-Café-Gruppe "Roastin' Coffee". Verwaltet Partner, Verwarnungen, Tickets, monatliche Reviews und Event-Anfragen.
+Stack: Node.js (CommonJS), discord.js ^14.14.1 (Components V2), mongoose ^8 (MongoDB Atlas), node-cron, dotenv. Hosting auf Render (Free), Code auf GitHub.
+Env-Variablen (Namen nie ändern): DISCORD_TOKEN, CLIENT_ID, MONGODB_URI, optional BRAND_LOGO_URL, PORT (Render).
+Intents: nur Guilds. Nachrichten-Inhalte werden nicht gelesen.
+Start: src/index.js startet einen Mini-HTTP-Server (OK, für Keep-Alive), lädt alle Dateien aus src/commands/ und src/events/ automatisch, startet einen Cron (1. des Monats, 09:00 UTC → Monats-Reviews), setzt globale Handler für unhandledRejection/uncaughtException, verbindet MongoDB und loggt dann ein.
+Slash-Commands registrieren: node deploy-commands.js (global). Nach neuen/geänderten Befehlen erneut ausführen.
+Wichtiger Workflow des Besitzers: Panels (Ticket-Panel, Regeln usw.) werden auf dweeb.faizo.net gebaut, als Components-V2-JSON exportiert und mit /dweeb send in Kanäle gepostet. Die Ticket-Buttons dort haben feste customIds ticket_open:general, ticket_open:partnership, ticket_open:report. Das darf nie kaputtgehen.
+2. Dateien und was sie tun
+src/
+├─ index.js                  Start, Command-/Event-Loader, Monats-Cron, globale Fehler-Handler
+├─ events/
+│  ├─ interactionCreate.js   Zentrales Routing (Commands, Autocomplete, Modals, Buttons, Selects) + Fehler-Card
+│  └─ ready.js               Event "clientReady", loggt den Bot-Namen
+├─ commands/
+│  ├─ config.js              /config  – Panel mit Select-Menüs, Buttons, Modals
+│  ├─ partner.js             /partner add|remove|edit|list + öffentliche Partnerliste + sendLog()
+│  ├─ infraction.js          /infraction add|list|remove (Autocomplete)
+│  ├─ ticket-panel.js        /ticket setup|edit|info + Ticket öffnen/schließen/claimen
+│  ├─ review.js              /review send + Monats-Review (Cron) + Modal-Antworten
+│  ├─ event-request.js       /event-request + Approve/Deny (Modal für Ablehnungsgrund)
+│  ├─ dweeb.js               /dweeb send|edit (JSON aus dweeb → Kanal, per REST)
+│  └─ test-style.js          /test-style (NOCH ALTER Textstil, siehe Fehler F15)
+├─ models/                   GuildConfig, Partner, Infraction, TicketType, EventRequest
+├─ theme/index.js            COLORS, INFRACTION_COLORS, EMOJI, BRAND, STRIKE_LIMIT=3, PAGE_SIZE=5, TICKET_CLOSE_DELAY_MS=5000, EVENT_REQUEST_COOLDOWN_MS=30000
+├─ ui/index.js               Alle Card-Builder (Components V2): card(), successCard/errorCard/warningCard/infoCard,
+│                            partnerCard, partnerListCards, infractionCard, infractionListCard, ticketWelcomeCard,
+│                            reviewCard, reviewResultCard, eventRequestCard, eventAnnouncementCard, configPanel, logCard
+└─ utils/
+   ├─ format.js              ts() (Discord-Timestamp), cap(), truncate(), isUrl(), isRobloxLink(), isDiscordInvite(), strikeBar()
+      ├─ permissions.js         isStaff(member, cfg): ManageGuild ODER eine der prStaffRoles
+         ├─ pagination.js          paginate(items, page, size) → { items, totalPages, page, row } (Buttons ◀ ▶)
+            └─ webhook.js             UNGENUTZT (alt), kann entfernt werden
+            deploy-commands.js, render.yaml, package.json, .env.example, README.md, DEVLOG.md (veraltet)
+            Design-System (bereits umgesetzt, beibehalten)
+            Alles läuft über Components V2: ContainerBuilder mit Akzentfarbe, TextDisplay, Separator, ActionRow mit Buttons. Jede Card hat Kopfzeile (## Emoji Titel), Trennlinie, Inhalt, optionale Buttons, Fußzeile (-# ☕ Roastin' Coffee · PR System · <t:…:R>).
+            card({ title, description, color, fields, buttons, ephemeral }) ist der Grundbaustein. Rückgabe ist ein sendefertiges Objekt { components: [container], flags } (flags = IsComponentsV2, plus Ephemeral falls gewünscht).
+            Palette: Karamell 0xC68E4E (primär), Espresso 0x3E2723 (dunkel), Erfolg 0x4CAF7A, Warnung 0xE8A33D, Fehler 0xD9534F, Termination 0x7A1F1F.
+            Datum immer als Discord-Timestamp (ts()). Bot-Texte Englisch, kurz, professionell, 1 Emoji pro Überschrift.
+            Components-V2-Regeln (Ursache der meisten Fehler unten)
+            Mit IsComponentsV2 darf eine Nachricht kein content und keine embeds haben.
+            Das Flag kann nicht nachträglich auf eine bestehende Nicht-V2-Nachricht gesetzt oder entfernt werden.
+            { ...cardPayload, components: [...] } ÜBERSCHREIBT den Container (das Spread liefert components: [container], das nachfolgende components: ersetzt es). Das Ergebnis ist eine Nachricht ohne Text oder eine leere Nachricht. Das ist die häufigste Fehlerquelle im Projekt. Zusätzliche ActionRows gehören in den Container (über card({ buttons })) oder als zusätzliche Elemente neben den Container: components: [...payload.components, row].
+            Max. 40 Komponenten pro Nachricht (verschachtelte zählen mit), max. 4000 Zeichen Gesamttext.
+            Eine Interaktion nur einmal beantworten. Nach deferReply immer editReply, nie reply.
+            3. Daten-Modelle (Mongoose)
+            Model
+            Felder
+            GuildConfig
+            guildId (unique), announcementChannel, reviewChannel, logChannel, partnerListChannel, ticketCategory, prStaffRoles[], partnerRepRoles[], partnerListText, ticketPanelText (ungenutzt), reviewText, reviewMode (dm|link, Default link), reviewLink, reviewQuestions[] (Default 3 Fragen), partnerListMessageIds[], Legacy: partnerListMessageId, announcementWebhook, reviewWebhook, partnerListWebhook
+            Partner
+            guildId, name, robloxLink, discordInvite, representativeId, addedAt
+            Infraction
+            guildId, partnerId (String, Partner-_id), type (warning|strike|termination), reason, issuedBy, issuedAt, removed
+            TicketType
+            guildId, customId (general|partnership|report), name, emoji, questions[], staffRoles[], welcomeText
+            EventRequest
+            guildId, submitterId, title, description, date (String), type (Event|Shift), status (pending|approved|denied), logMessageId, decidedBy, decidedAt, denyReason, createdAt
+            4. Befehle und Abläufe (Ist-Zustand)
+            Befehl
+            Berechtigung
+            Verhalten
+            /config
+            Administrator
+            Konfigurations-Panel (Kanäle, Rollen, Review-Modus/-Link, Texte) mit Select-Menüs und Modals
+            /partner add/remove/edit/list
+            Manage Guild
+            Validierung der Links, Partnerliste automatisch aktualisiert (V2, mehrere Nachrichten bei Bedarf, alte werden gelöscht), Remove mit Bestätigungs-Buttons, Liste paginiert, Logeintrag
+            /infraction add/list/remove
+            Manage Guild
+            Card in Typ-Farbe, Strike-Fortschritt ▰▰▱ 2/3, Warnung bei Limit (kein Auto-Termination), DM an Representative, Log
+            /ticket setup/edit/info
+            Manage Guild
+            Legt die 3 Typen an, Texte/Fragen/Staff-Rollen per Modal editierbar
+            Ticket-Button ticket_open:<typ>
+            alle
+            Erstellt privaten Kanal in ticketCategory (Topic ticket:<userId>:<typ>), Staff-Rollen sehen ihn, Willkommens-Card mit Buttons Close/Claim
+            /review send + Cron
+            Manage Guild
+            Eine Review-Card pro Partner im Review-Kanal; Button "Start Review" (Modal mit bis zu 5 Fragen) oder Link-Button; Antworten als Card in Review- und Logkanal
+            /event-request
+            alle
+            Speichert EventRequest, postet Card mit Approve/Deny im Logkanal (sonst Ankündigungskanal), 30 s Cooldown; Staff entscheidet; Approve postet Ankündigung, Deny fragt Grund per Modal und schickt DM
+            /dweeb send/edit
+            Administrator
+            Modal für JSON aus dweeb, bereinigt leere Medien-Elemente, sendet per REST (flags: 32768)
+            /test-style
+            Administrator
+            Alter Text-Test (soll Design-Preview werden)
+            customId-Übersicht (nicht ändern, nur ergänzen): ticket_open:<typ>, ticket_close, ticket_claim, ticket_edit:<typ> (Modal), review_start:<partnerId>, review_submit:<partnerId> (Modal), event_approve:<id>, event_deny:<id>, event_deny_reason:<id> (Modal), partner_confirm_remove:<id>, partner_cancel_remove, page_prev:<n>/page_next:<n> (siehe F9), cfg_category, cfg_ch_pick, cfg_channel:<key>, cfg_ticketCategory, cfg_prStaffRoles, cfg_partnerRepRoles, cfg_reviewMode, cfg_text_pick, cfg_text_modal:<key>, cfg_setReviewLink, cfg_reviewLink_modal, cfg_back, dweeb_send:<kanal>, dweeb_edit:<kanal>:<msg>. Keine customId über 100 Zeichen.
+            5. Gefundene Fehler (alle beim vollständigen Lesen des Codes bestätigt)
+            Behebe sie in dieser Reihenfolge. Die Stufe P1 bricht Kernfunktionen.
+            P1: Kernfunktionen kaputt
+            F1. /review send stürzt ab (src/commands/review.js, Z. 16-17): interaction.deferReply steht zweimal hintereinander → zweiter Aufruf wirft "already replied". Eine Zeile entfernen.
+            F2. Review-Cards können nicht gesendet werden (review.js, Z. 41): channel.send({ content: '<@…>', ...card }) verletzt V2-Regel 1. Ping als erste Zeile in den Card-Text (TextDisplay) legen (z. B. reviewCard(partner, month, text, mode, link) bekommt den Ping eingebaut) und allowedMentions: { users: [partner.representativeId] } setzen. Gleiches gilt überall, wo content mit einer Card kombiniert wird (siehe F4 und die Suche am Ende dieses Abschnitts).
+            F3. Review-Modal-Ablauf kaputt (review.js, handleReviewStart Z. 54/58, handleReviewSubmit Z. 84/104): Es wird interaction.editReply(...) benutzt, ohne vorher deferReply. In handleReviewStart (Fehlerfälle vor dem Modal) interaction.reply(errorCard(...)) verwenden. In handleReviewSubmit zuerst await interaction.deferReply({ flags: MessageFlags.Ephemeral }), danach editReply. Außerdem: Wenn reviewQuestions leer ist, eine verständliche errorCard zeigen statt ein leeres Modal.
+            F4. Ticket öffnen schlägt fehl, Close/Claim fehlen (src/commands/ticket-panel.js, Z. 150): ticketChannel.send({ content: pingText, ...ticketWelcomeCard(...) }) verletzt V2-Regel 1. Discord lehnt die Nachricht ab, der Kanal bleibt leer, und die Buttons erscheinen nie. Lösung:
+            await ticketChannel.send({ content: pingText });
+            await ticketChannel.send(ticketWelcomeCard(type, user));
+            Wenn das Senden scheitert, den neu erstellten Kanal wieder löschen und eine errorCard zeigen (keine verwaisten Kanäle).
+            F5. Claim zerstört die Card (ticket-panel.js, Z. 209): interaction.update({ ...ticketWelcomeCard(...), components: [] }) ersetzt den Container durch eine leere Liste. components: [] entfernen: interaction.update(ticketWelcomeCard(type, { id }, interaction.user.id)). Zusätzlich im Claim-Zustand den Claim-Button deaktivieren oder durch "Release" ersetzen (ticketWelcomeCard bekommt dafür einen claimedBy-Zweig).
+            F6. Ticket öffnen ohne deferReply (ticket-panel.js, handleTicketOpen): Kanal erstellen + zwei Nachrichten senden kann länger als 3 Sekunden dauern, dann kommt "Interaction failed". Am Anfang await interaction.deferReply({ flags: MessageFlags.Ephemeral }) und alle Antworten als editReply.
+            F7. /config zeigt nur ein Dropdown, keinen Text (src/commands/config.js, praktisch jede Stelle mit { ...configPanel(cfg), components: [...] }, u. a. Z. 35, 47, 69, 86, 104, 124, 143, 151, 157, 196): Das überschreibt den Container (V2-Regel 3). Das Panel verliert seine Übersicht. Lösung: configPanel(cfg, rows = []) liefert components: [container, ...rows], oder die Rows kommen als buttons/rows-Parameter von card() in den Container. Danach alle Aufrufe in config.js entsprechend umstellen.
+            F8. Partner entfernen: Bestätigungstext verschwindet, danach Fehler (partner.js, Z. 67-69; interactionCreate.js, Z. 93 und 99): editReply({ ...reply, components: [row] }) ersetzt den Container durch nur die Buttons. interaction.update({ ...successCard(...), components: [] }) leert die Nachricht komplett (ungültig). Der setTimeout(... editReply({ components: [] })) scheitert ebenfalls. Lösung: Bestätigung als card({ ..., buttons: [remove, cancel], ephemeral: true }) bauen, nach Entscheidung interaction.update(successCard(...)) ohne components-Override. Den Timeout durch eine abgelaufen-Card ersetzen oder weglassen. Außerdem die Logik aus interactionCreate.js in partner.js verlegen (handlePartnerRemoveConfirm) und dort guildId prüfen (Partner.findOneAndDelete({ _id, guildId })) sowie Staff-Berechtigung (isStaff).
+            F9. Seiten-Buttons ◀ ▶ tun nichts (pagination.js, partner.js Z. 100-108, infraction.js Z. 108-111): Die Buttons haben customIds page_prev:<n>/page_next:<n>, aber in interactionCreate.js gibt es keinen Handler. Außerdem fehlt der Kontext (was wird paginiert?). Lösung: customId mit Kontext, z. B. page:partners:_:<seite> und page:infractions:<partnerId>:<seite> (≤ 100 Zeichen). paginate(items, page, size, ctx) erzeugt sie. In interactionCreate.js ein Routing id.startsWith('page:'), das Daten neu lädt, die richtige Card rendert und mit interaction.update(...) aktualisiert. Die Pagination-Row gehört neben den Container (components: [...res.components, row], das ist bereits so und korrekt) oder in den Container.
+            F10. Event-Entscheidung zerstört die Nachricht (event-request.js, Z. 83 und 109): interaction.update({ ...updated, components: [] }) (beide Stellen). Neue Card eventDecisionCard(req, status, decidedBy, reason) in src/ui/ (Farbe Erfolg/Fehler, Text "Approved by …"/"Denied by …", ohne Buttons) und interaction.update(thatCard). Beim Deny-Modal (handleEventDenyModal) zusätzlich Staff-Berechtigung erneut prüfen.
+            F11. /dweeb send/edit zeigt immer einen Fehler (dweeb.js, Z. 59-74): Nach deferReply wird interaction.reply(...) aufgerufen (Doppel-Antwort → Fehler). Die Nachricht wird zwar gesendet, der Nutzer sieht aber "Something went wrong". Überall editReply verwenden. ephemeral: true durch flags: MessageFlags.Ephemeral ersetzen.
+            F12. Autocomplete für /infraction remove liefert nie Ergebnisse (infraction.js, Z. 36): .populate('partnerId') auf einem normalen String-Feld wirft einen Fehler, der durch .catch(() => []) verschluckt wird. .populate(...) entfernen. Datumsformat dort durch ts()-unabhängige Kurzform ersetzen (Autocomplete-Namen sind Klartext, ein Datumsstring wie 2026-11-20 ist ok).
+            P2: Fehlverhalten und Qualität
+            F13. Doppelte Log-Einträge bei Infractions (infraction.js, Z. 90-98): Die Card wird in den Logkanal gesendet und zusätzlich sendLog(...). Nur eines behalten (die Card). Ungenutzte Variable dmDesc entfernen.
+            F14. Öffentliche Partnerliste mit Ephemeral-Flag (partner.js, Z. 123): Für "No active partners yet" wird infoCard(...) mit Standard ephemeral=true per channel.send gepostet. Ephemeral gibt es nicht in normalen Kanälen. infoCard(title, desc, false) verwenden.
+            F15. /test-style ist noch der alte Text (test-style.js): Soll ein Design-Preview sein: sendet jede Card-Art aus src/ui/ mit Beispieldaten (nur Administrator, ephemeral oder mit Lösch-Button). So kann der Besitzer das gesamte Design auf einen Blick prüfen.
+            F16. Texte stimmen nicht mit dem Verhalten überein: config.js Z. 108 und README erwähnen den Platzhalter {partners} in partnerListText, der Code benutzt aber nur den Header. Entweder {partners} unterstützen (wenn vorhanden: Header-Teil vor dem Platzhalter nutzen) oder die Erwähnung entfernen. Review-Modus "DM Questions" heißt im Code inzwischen "Modal im Server" → Labels in config.js und ui/index.js (configPanel) in "In-Discord Form" ändern.
+            F17. Zu lange Texte brechen Nachrichten: reviewResultCard kann bis zu 5 × 4000 Zeichen enthalten (Modal-Antworten), Discord erlaubt maximal 4000 Zeichen Text pro Nachricht. In card() den Gesamttext absichern (z. B. harte Kürzung auf ~3800 Zeichen mit truncate) und Review-Antworten je Antwort kürzen (z. B. 700 Zeichen).
+            F18. reviewQuestions sind nicht über /config änderbar: Nur in der Datenbank. Neuer Eintrag "Review Questions" in der Kategorie "Review System": Modal, eine Frage pro Zeile, max. 5, je max. 45 Zeichen (Modal-Label-Limit), mit Validierung und Hinweis.
+            F19. Ungenutzt/veraltet: partnerRepRoles werden nirgends verwendet (siehe Erweiterung B2), ticketPanelText ungenutzt, src/utils/webhook.js ungenutzt (Datei entfernen), BRAND.logoUrl wird nirgends angezeigt (wenn gesetzt: als Thumbnail in partnerCard und ticketWelcomeCard per SectionBuilder + ThumbnailBuilder verwenden, sonst unverändert), MessageFlags in interactionCreate.js ungenutzt, ephemeral: true in partner.js, infraction.js, review.js, config.js, dweeb.js, test-style.js → flags: MessageFlags.Ephemeral (discord.js-Deprecation).
+            F20. Deployment-Dokumentation widerspricht sich: render.yaml sagt type: worker, die README beschreibt einen Web Service mit UptimeRobot-Ping (und die Render-Logs des Besitzers zeigen die Free-Instance-Meldung "will spin down"). Passe render.yaml an (type: web, healthCheckPath: /, optionale Variable BRAND_LOGO_URL) und prüfe, dass die README stimmt. DEVLOG.md ist veraltet: neu schreiben (aktuelle Befehle, Ablauf, customIds, Setup-Schritte, bekannte Einschränkungen).
+            Pflicht-Sweep nach den Fixes
+            Durchsuche das gesamte Projekt nach den vier Mustern und behebe jeden Treffer:
+            content: zusammen mit einem Card-Payload (...xyzCard(...) oder ...card)
+            components: [] oder components: [...] nach einem Spread eines Card-Payloads (V2-Regel 3)
+            interaction.reply nach deferReply oder editReply ohne vorheriges deferReply/reply
+            Bearbeiten einer bestehenden Nicht-V2-Nachricht mit einem V2-Payload
+            Dokumentiere Fund und Fix in DEVLOG.md.
+            6. Noch offene Erweiterungen (von der vorherigen KI nicht mehr umgesetzt)
+            Alle additiv: neue Felder mit Defaults, keine Daten löschen, bestehende customIds/Befehle bleiben. Alle neuen Funktionen sind in /config unter einer neuen Kategorie "⚙️ Automation" einzeln ein-/ausschaltbar und mit Zahlen einstellbar. Nutze ausschließlich die vorhandenen ui/-Bausteine, das Theme und die Utils.
+            Fundament (zuerst):
+            Scheduler src/scheduler/ mit node-cron. Zeitgesteuerte Vorgänge speichern ihren Zeitpunkt in der Datenbank (kein langes setTimeout, Render startet neu) und laufen idempotent (Markierungen wie reminderSentAt). Fehler pro Server/Eintrag abfangen, Lauf geht weiter.
+            Models: Ticket (guildId, channelId, userId, typeId, claimedBy, status, openedAt, firstStaffReplyAt, closedAt, closedBy, lastActivityAt, rating, reminderSentAt), ReviewSubmission (guildId, partnerId, month YYYY-MM, answers, submittedBy, submittedAt), AuditEntry (guildId, actorId, action, targetType, targetId, details, createdAt, TTL 180 Tage). Jede wichtige Aktion schreibt einen Audit-Eintrag; Log-Cards entstehen aus derselben Quelle.
+            Config-Felder (Beispiele): ticketInactivityEnabled, ticketInactivityHours (24), ticketAutoCloseHours (24), maxOpenTicketsPerUser (3), infractionExpiryDays (Warning 90, Strike 180, 0 = nie), reviewReminderDays (7), reviewOverdueDays (14), eventReminderHours (1), anniversaryAnnouncements, inviteHealthCheck, autoAssignRepRoles, ticketRatingEnabled.
+            Tickets (B1): Release-Button; /ticket add <user>, /ticket remove <user>, /ticket rename, /ticket priority; Inaktivitäts-Erinnerung und Auto-Close mit Transcript; Bewertung (1-5 Sterne per DM, optionales Feedback-Modal); HTML-Transcript zusätzlich zur .txt; Antwortzeit (firstStaffReplyAt); Limit offener Tickets pro Nutzer; Duplikat-Check über DB statt Channel-Cache.
+            Partner (B2): Rep-Rollen (partnerRepRoles) beim Anlegen/Wechseln/Entfernen automatisch vergeben und entfernen 
