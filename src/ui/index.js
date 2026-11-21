@@ -505,5 +505,5 @@ module.exports = {
   reviewCard, reviewResultCard, reviewStatusCard,
   eventRequestCard, eventAnnouncementCard, eventAnnouncementCardWithCount, eventDecisionCard,
   configPanel, automationPanel, logCard,
-  statsCard, doctorCard, auditCard,
+  statsCard, doctorCard, auditCard, footer,
 };
