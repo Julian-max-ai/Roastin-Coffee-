@@ -11,6 +11,7 @@ const GuildConfigSchema = new Schema({
   prStaffRoles:         { type: [String], default: [] },
   adminRoles:           { type: [String], default: [] },
   partnerRepRoles:      { type: [String], default: [] },
+  ticketBlacklist:      { type: [{ userId: String, reason: String, addedBy: String, addedAt: Date }], default: [] },
   partnerListText:      { type: String, default: `## 🤝 Our Partners\n\n` },
   ticketPanelText:      { type: String, default: `## 🎫 Support & Partnership\n\nSelect an option below to open a ticket.` },
   reviewText:           { type: String, default: 'Please complete your monthly partnership review.' },
