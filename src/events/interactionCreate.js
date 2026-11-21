@@ -61,6 +61,9 @@ async function route(interaction, client) {
     if (id.startsWith('infraction_appeal_submit:')) {
       return require('../commands/infraction').handleInfractionAppealSubmit(interaction);
     }
+    if (id.startsWith('appeal_reject_reason:')) {
+      return require('../commands/infraction').handleAppealRejectReason(interaction);
+    }
     return;
   }
 

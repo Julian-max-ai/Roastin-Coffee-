@@ -29,6 +29,7 @@ function updatePartnerStatus(partner, activeStrikes, cfg) {
   return 'active';
 }
 
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('infraction')
@@ -273,6 +274,14 @@ module.exports = {
     const partner = await Partner.findOne({ _id: inf.partnerId, guildId }).catch(() => null);
     if (!partner) return interaction.update(errorCard('Partner not found.'));
 
+    if (action === 'reject') {
+      const modal = new ModalBuilder().setCustomId(`appeal_reject_reason:${infractionId}`).setTitle('Reject Appeal');
+      modal.addComponents(new ActionRowBuilder().addComponents(
+        new TextInputBuilder().setCustomId('reason').setLabel('Reason for rejection').setStyle(TextInputStyle.Paragraph).setRequired(true)
+      ));
+      return interaction.showModal(modal);
+    }
+
     if (action === 'accept') {
       // C3: Accept → removed: true, recalculate status, DM representative
       await Infraction.findByIdAndUpdate(infractionId, { appealStatus: 'accepted', removed: true });
@@ -287,15 +296,29 @@ module.exports = {
       } catch {}
       await interaction.update(successCard(`Appeal accepted — infraction removed for **${partner.name}**.`));
       await audit(guildId, interaction.user.id, 'appeal_accept', 'infraction', infractionId, { partnerId: partner._id.toString() });
-    } else {
-      // C3: Reject → appealStatus rejected, DM with reason
-      await Infraction.findByIdAndUpdate(infractionId, { appealStatus: 'rejected' });
-      try {
-        const rep = await interaction.client.users.fetch(partner.representativeId);
-        await rep.send(errorCard(`Your appeal for the infraction on **${partner.name}** has been rejected.`, false)).catch(() => {});
-      } catch {}
-      await interaction.update(successCard(`Appeal rejected for **${partner.name}**.`));
-      await audit(guildId, interaction.user.id, 'appeal_reject', 'infraction', infractionId, { partnerId: partner._id.toString() });
     }
+  },
+
+  async handleAppealRejectReason(interaction) {
+    const infractionId = interaction.customId.replace('appeal_reject_reason:', '');
+    const reason = interaction.fields.getTextInputValue('reason');
+    const { guildId } = interaction;
+    const cfg = await GuildConfig.findOne({ guildId });
+    if (!isStaff(interaction.member, cfg)) return interaction.reply(errorCard('Only staff can decide appeals.'));
+
+    const Infraction = require('../models/Infraction');
+    const Partner = require('../models/Partner');
+    const inf = await Infraction.findById(infractionId).catch(() => null);
+    if (!inf) return interaction.reply(errorCard('Infraction not found.'));
+    const partner = await Partner.findOne({ _id: inf.partnerId, guildId }).catch(() => null);
+    if (!partner) return interaction.reply(errorCard('Partner not found.'));
+
+    await Infraction.findByIdAndUpdate(infractionId, { appealStatus: 'rejected', appealRejectReason: reason });
+    try {
+      const rep = await interaction.client.users.fetch(partner.representativeId);
+      await rep.send(errorCard(`Your appeal for the infraction on **${partner.name}** has been rejected.\n\n**Reason:** ${reason}`, false)).catch(() => {});
+    } catch {}
+    await interaction.update(successCard(`Appeal rejected for **${partner.name}**.`));
+    await audit(guildId, interaction.user.id, 'appeal_reject', 'infraction', infractionId, { partnerId: partner._id.toString(), reason });
   },
 };
