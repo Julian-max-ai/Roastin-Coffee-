@@ -159,6 +159,14 @@ module.exports = {
 
     if (sub === 'remove') {
       const id = interaction.options.getString('id');
+      const existing = await Infraction.findOne({ _id: id, guildId }).catch(() => null);
+      if (!existing) return interaction.editReply(errorCard('Infraction not found. Make sure you selected a valid entry.'));
+
+      const cfg = await GuildConfig.findOne({ guildId });
+      const isAdmin = require('../utils/permissions').isAdmin(interaction.member, cfg);
+      const isIssuer = existing.issuedBy === interaction.user.id;
+      if (!isAdmin && !isIssuer) return interaction.editReply(errorCard('Only the issuer or an admin can remove this infraction.'));
+
       const infraction = await Infraction.findOneAndUpdate(
         { _id: id, guildId },
         { removed: true },
