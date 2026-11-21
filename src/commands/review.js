@@ -72,6 +72,13 @@ async function sendMonthlyReviews(client, targetGuildId = null) {
         await channel.send({ content: `<@${partner.representativeId}>`, allowedMentions: { users: [partner.representativeId] } });
         await channel.send(card);
         total++;
+        // Create ReviewRequest to prevent duplicate sends
+        const ReviewRequest = require('../models/ReviewRequest');
+        await ReviewRequest.findOneAndUpdate(
+          { guildId: cfg.guildId, partnerId: partner._id, month },
+          { guildId: cfg.guildId, partnerId: partner._id, month, status: 'sent' },
+          { upsert: true }
+        ).catch(() => {});
         // Small pause to respect rate limits
         await new Promise(r => setTimeout(r, 500));
       }

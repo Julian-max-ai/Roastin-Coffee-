@@ -12,7 +12,7 @@ async function runCatchup(client) {
       try {
         // Check if monthly review was sent this month
         const existing = await ReviewRequest.countDocuments({ guildId: cfg.guildId, month });
-        if (existing === 0 && now.getDate() >= 1) {
+        if (existing === 0 && now.getDate() <= 3) {
           console.log(`[catchup] Sending missed monthly reviews for guild ${cfg.guildId}`);
           await sendMonthlyReviews(client, cfg.guildId).catch(err => console.error('[catchup]', err));
         }
