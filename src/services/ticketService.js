@@ -87,6 +87,7 @@ async function closeTicket(client, ticketId, { closedBy, reason, source }) {
   let txtFile = null, htmlFile = null;
   if (channel) {
     const result = await buildTranscript(channel, updated, closedBy, reason);
+    var messageCount = result?.messageCount || 0;
     txtFile = result.txtFile;
     htmlFile = result.htmlFile;
 
@@ -106,9 +107,16 @@ async function closeTicket(client, ticketId, { closedBy, reason, source }) {
   if (transcriptChId) {
     const tCh = await client.channels.fetch(transcriptChId).catch(() => null);
     if (tCh) {
+      const openedAt = updated.createdAt ? new Date(updated.createdAt) : null;
+      const closedAt = new Date();
+      const durationMs = openedAt ? closedAt - openedAt : 0;
+      const durationStr = durationMs > 0 ? `${Math.floor(durationMs / 3600000)}h ${Math.floor((durationMs % 3600000) / 60000)}m` : 'N/A';
+      const firstReplyStr = updated.firstStaffReplyAt ? `<t:${Math.floor(new Date(updated.firstStaffReplyAt).getTime() / 1000)}:R>` : 'N/A';
+      const closedByDisplay = closedBy === 'system' ? 'Automatic' : `<@${closedBy}>`;
+
       const summaryCard = (require('../ui')).card({
         title: `${require('../theme').EMOJI.ticket} Ticket Closed — #${updated.ticketNumber || '?'}`,
-        description: `**Type:** ${updated.typeId}\n**Opener:** <@${updated.userId}>\n**Claimer:** ${updated.claimedBy ? `<@${updated.claimedBy}>` : 'Never claimed'}\n**Closed by:** <@${closedBy}>\n**Reason:** ${reason || 'None'}\n**Source:** ${source}\n**Messages:** ${txtFile ? 'Transcript attached' : 'N/A'}`,
+        description: `**Type:** ${updated.typeId}\n**Opener:** <@${updated.userId}>\n**Claimer:** ${updated.claimedBy ? `<@${updated.claimedBy}>` : 'Never claimed'}\n**Closed by:** ${closedByDisplay}\n**Reason:** ${reason || 'None'}\n**Source:** ${source}\n**Opened:** <t:${openedAt ? Math.floor(openedAt.getTime() / 1000) : 0}:f>\n**Closed:** <t:${Math.floor(closedAt.getTime() / 1000)}:f>\n**Duration:** ${durationStr}\n**First Staff Reply:** ${firstReplyStr}\n**Messages:** ${messageCount || (txtFile ? 'Transcript attached' : 'N/A')}`,
         color: require('../theme').COLORS.dark,
         buttons: [],
         ephemeral: false,
