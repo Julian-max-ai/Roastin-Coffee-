@@ -7,6 +7,12 @@ const GuildConfigSchema = new Schema({
   logChannel:           { type: String, default: null },
   partnerListChannel:   { type: String, default: null },
   ticketCategory:       { type: String, default: null },
+  transcriptChannel:    { type: String, default: null },
+  partnerCategory:      { type: String, default: null },
+  staffAlertChannel:     { type: String, default: null },
+  eventChannel:         { type: String, default: null },
+  setupProgress:        { type: Schema.Types.Mixed, default: {} },
+  timezone:             { type: String, default: 'UTC' },
   ticketCounter:        { type: Number, default: 0 },
   prStaffRoles:         { type: [String], default: [] },
   adminRoles:           { type: [String], default: [] },
@@ -25,11 +31,6 @@ const GuildConfigSchema = new Schema({
   macros:               { type: [{ name: String, text: String }], default: [] },
   awayList:             { type: [{ userId: String, from: String, to: String, reason: String }], default: [] },
   partnerListMessageIds:{ type: [String], default: [] },
-  // legacy — kept to avoid data loss
-  partnerListMessageId: { type: String, default: null },
-  announcementWebhook:  { type: String, default: null },
-  reviewWebhook:        { type: String, default: null },
-  partnerListWebhook:   { type: String, default: null },
   // ── Automation ──────────────────────────────────────────────────────────────
   automation: {
     ticketInactivityEnabled:  { type: Boolean, default: true },
@@ -50,6 +51,9 @@ const GuildConfigSchema = new Schema({
     weeklyEventDigest:        { type: Boolean, default: false },
     unclaimedAlertMinutes:    { type: Number, default: 30 },
     unclaimedAlertRole:       { type: String, default: null },
+    closeDelaySeconds:        { type: Number, default: 10 },
+    ticketRenameOnClaim:      { type: Boolean, default: true },
+    transcriptDmToUser:       { type: Boolean, default: true },
   },
 });
 

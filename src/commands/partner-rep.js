@@ -44,7 +44,7 @@ module.exports = {
       partner.representativeIds.push(user.id);
       await partner.save();
       // Auto-assign role
-      if (cfg?.autoAssignRepRoles && cfg?.partnerRepRoles?.length) {
+      if (cfg?.automation?.autoAssignRepRoles && cfg?.partnerRepRoles?.length) {
         try {
           const member = await interaction.guild.members.fetch(user.id);
           await member.roles.add(cfg.partnerRepRoles);

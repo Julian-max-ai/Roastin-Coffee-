@@ -389,7 +389,6 @@ async function handleTicketCloseRequest(interaction) {
 }
 
 async function handleTicketClose(interaction) {
-  await interaction.deferReply({ ephemeral: true });
   const { guild, channel, member } = interaction;
   const cfg = await GuildConfig.findOne({ guildId: guild.id });
 
@@ -398,7 +397,7 @@ async function handleTicketClose(interaction) {
   // Allow ticket creator or staff to close
   const isCreator = ticket?.userId === interaction.user.id;
   if (!isStaff(member, cfg) && !isCreator) {
-    return interaction.editReply(errorCard('Only the ticket creator or staff can close this ticket.'));
+    return interaction.reply({ ...errorCard('Only the ticket creator or staff can close this ticket.'), ephemeral: true });
   }
 
   // Staff close → modal with reason/category/duration
@@ -416,6 +415,7 @@ async function handleTicketClose(interaction) {
   }
 
   // A2: Confirmation card first (for non-staff)
+  await interaction.deferReply({ ephemeral: true });
   return interaction.editReply(card({
     title: `${EMOJI.close} Confirm Ticket Close`,
     description: `Are you sure you want to close this ticket? The channel will be deleted shortly and a transcript will be sent to the log channel and ticket creator.`,

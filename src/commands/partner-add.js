@@ -49,7 +49,7 @@ module.exports = {
 
     // Auto-assign rep role
     let roleAssigned = false;
-    if (cfg?.autoAssignRepRoles && cfg?.partnerRepRoles?.length) {
+    if (cfg?.automation?.autoAssignRepRoles && cfg?.partnerRepRoles?.length) {
       try {
         const member = await guild.members.fetch(rep.id);
         await member.roles.add(cfg.partnerRepRoles);
