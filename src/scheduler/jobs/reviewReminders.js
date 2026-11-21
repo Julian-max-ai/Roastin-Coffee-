@@ -6,6 +6,7 @@ const GuildConfig = require('../../models/GuildConfig');
 const { card, logCard } = require('../../ui');
 const { EMOJI, COLORS } = require('../../theme');
 const { audit } = require('../../utils/audit');
+const { getText } = require('../../utils/texts');
 
 const SLEEP = 500;
 
@@ -58,7 +59,7 @@ async function reviewRemindersJob(client, setLastRun) {
             await ReviewRequest.findByIdAndUpdate(rr._id, { remindedAt: now });
             await channel.send({ ...card({
               title: `${EMOJI.reminder} Review Reminder`,
-              description: `**${partner.name}**, please complete your monthly review for ${month}.` +
+              description: getText(cfg, 'review_reminder', { partner: partner.name, rep: `<@${partner.representativeId}>`, month }) +
                 (cfg.reviewMode === 'link' && cfg.reviewLink
                   ? `\nLink: ${cfg.reviewLink}`
                   : '\nUse the "Start Review" button on the review card.'),
