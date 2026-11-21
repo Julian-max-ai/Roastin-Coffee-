@@ -139,8 +139,8 @@ async function closeTicket(client, ticketId, { closedBy, reason, source }) {
     }
   }
 
-  // DM transcript to opener
-  if (updated.userId && txtFile && htmlFile) {
+  // DM transcript to opener (respect config)
+  if (cfg?.automation?.transcriptDmToUser !== false && updated.userId && txtFile && htmlFile) {
     try {
       const opener = await client.users.fetch(updated.userId);
       await opener.send(successCard('Your ticket has been closed. Here is your transcript.', false)).catch(() => {});
