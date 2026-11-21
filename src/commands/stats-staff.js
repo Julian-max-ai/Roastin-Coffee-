@@ -8,6 +8,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('stats-staff')
     .setDescription('Staff statistics.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addUserOption(o => o.setName('user').setDescription('Staff-Mitglied').setRequired(true)),
   async execute(interaction) {
     await interaction.deferReply({ ephemeral: true });

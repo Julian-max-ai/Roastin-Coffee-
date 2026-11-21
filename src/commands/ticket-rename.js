@@ -10,6 +10,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('ticket-rename')
     .setDescription('Rename ticket base name.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addStringOption(o => o.setName('name').setDescription('Neuer Basisname').setRequired(true)),
   async execute(interaction) {
     await interaction.deferReply({ ephemeral: true });

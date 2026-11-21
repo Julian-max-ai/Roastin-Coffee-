@@ -9,6 +9,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('ticket-close-request')
     .setDescription('Send close request for a ticket.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addStringOption(o => o.setName('reason').setDescription('Grund (optional)').setRequired(false)),
   async execute(interaction) {
     await interaction.deferReply({ ephemeral: true });

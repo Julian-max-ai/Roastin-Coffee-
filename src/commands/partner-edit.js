@@ -9,6 +9,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('partner-edit')
     .setDescription('Edit partner.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addStringOption(o => o.setName('name').setDescription('Partner-Name').setRequired(true).setAutocomplete(true))
     .addStringOption(o => o.setName('newname').setDescription('Neuer Name'))
     .addStringOption(o => o.setName('roblox').setDescription('Neuer Roblox-Link'))

@@ -8,6 +8,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('exchange')
     .setDescription('Track partnership exchanges.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addSubcommand(s => s.setName('log').setDescription('Log exchange.')
       .addStringOption(o => o.setName('partner').setDescription('Partner').setRequired(true).setAutocomplete(true))
       .addStringOption(o => o.setName('type').setDescription('Typ').setRequired(true).addChoices(

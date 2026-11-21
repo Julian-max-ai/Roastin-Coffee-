@@ -10,6 +10,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('ticket-priority')
     .setDescription('Set ticket priority.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addStringOption(o => o.setName('priority').setDescription('Priority').setRequired(true)
       .addChoices({ name: 'low', value: 'low' }, { name: 'normal', value: 'normal' }, { name: 'high', value: 'high' }, { name: 'urgent', value: 'urgent' })),
   async execute(interaction) {

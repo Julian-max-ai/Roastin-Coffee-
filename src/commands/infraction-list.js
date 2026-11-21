@@ -18,6 +18,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('infraction-list')
     .setDescription('Infractions eines Partners anzeigen.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addStringOption(o => o.setName('partner').setDescription('Partner').setRequired(true).setAutocomplete(true))
     .addStringOption(o => o.setName('filter').setDescription('Filter').addChoices(
       { name: 'Active', value: 'active' }, { name: 'All', value: 'all' },

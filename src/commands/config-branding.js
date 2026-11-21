@@ -7,7 +7,8 @@ const { isStaff } = require('../utils/permissions');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('config-branding')
-    .setDescription('Branding anpassen (Name, Sub, Logo, Farbe).')
+    .setDescription('Branding anpassen (Name, Sub, Logo, Farbe)')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addStringOption(o => o.setName('name').setDescription('Bot-Name'))
     .addStringOption(o => o.setName('sub').setDescription('Untertitel'))
     .addStringOption(o => o.setName('logo').setDescription('Logo-URL'))

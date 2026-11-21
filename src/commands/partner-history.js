@@ -11,6 +11,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('partner-history')
     .setDescription('Show partner history.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addStringOption(o => o.setName('partner').setDescription('Partner').setRequired(true).setAutocomplete(true)),
   async autocomplete(interaction) {
     const partners = await Partner.find({ guildId: interaction.guildId });

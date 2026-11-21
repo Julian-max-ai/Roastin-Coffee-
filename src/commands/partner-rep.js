@@ -10,6 +10,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('partner-rep')
     .setDescription('Manage partner representatives.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addSubcommand(s => s.setName('add').setDescription('Add rep.')
       .addStringOption(o => o.setName('partner').setDescription('Partner').setRequired(true).setAutocomplete(true))
       .addUserOption(o => o.setName('user').setDescription('User').setRequired(true)))

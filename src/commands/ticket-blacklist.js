@@ -8,6 +8,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('ticket-blacklist')
     .setDescription('Ticket creation blacklist.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addSubcommand(s => s.setName('add').setDescription('Blacklist user.')
       .addUserOption(o => o.setName('user').setDescription('User').setRequired(true))
       .addStringOption(o => o.setName('reason').setDescription('Grund').setRequired(true)))

@@ -10,6 +10,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('ticket-transfer')
     .setDescription('Transfer ticket to another staff.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addUserOption(o => o.setName('user').setDescription('Neuer Claimer').setRequired(true)),
   async execute(interaction) {
     await interaction.deferReply({ ephemeral: true });

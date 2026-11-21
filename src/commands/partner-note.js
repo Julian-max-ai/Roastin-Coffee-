@@ -9,6 +9,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('partner-note')
     .setDescription('Manage partner notes.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addSubcommand(s => s.setName('add').setDescription('Add note.')
       .addStringOption(o => o.setName('partner').setDescription('Partner').setRequired(true).setAutocomplete(true))
       .addStringOption(o => o.setName('text').setDescription('Note').setRequired(true)))

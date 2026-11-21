@@ -8,7 +8,8 @@ const { isStaff } = require('../utils/permissions');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('ticket-info')
-    .setDescription('Show ticket information.'),
+    .setDescription('Show ticket information.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
   async execute(interaction) {
     await interaction.deferReply({ ephemeral: true });
     const { guild, channel } = interaction;

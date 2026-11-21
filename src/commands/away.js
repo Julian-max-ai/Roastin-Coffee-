@@ -7,6 +7,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('away')
     .setDescription('Staff-Set absence.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addSubcommand(s => s.setName('set').setDescription('Set absence.')
       .addStringOption(o => o.setName('from').setDescription('Von (YYYY-MM-DD)').setRequired(true))
       .addStringOption(o => o.setName('to').setDescription('Bis (YYYY-MM-DD)').setRequired(true))

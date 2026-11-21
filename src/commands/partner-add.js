@@ -11,6 +11,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('partner-add')
     .setDescription('Add partner.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addStringOption(o => o.setName('name').setDescription('Name').setRequired(true))
     .addStringOption(o => o.setName('roblox').setDescription('Roblox-Link').setRequired(true))
     .addStringOption(o => o.setName('discord').setDescription('Discord-Invite').setRequired(true))

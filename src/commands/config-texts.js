@@ -9,6 +9,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('config-texts')
     .setDescription('Bot-Texte bearbeiten.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addStringOption(o => o.setName('key').setDescription('Text-Key').setRequired(true).setAutocomplete(true))
     .addStringOption(o => o.setName('value').setDescription('Neuer Text').setRequired(true)),
   async autocomplete(interaction) {

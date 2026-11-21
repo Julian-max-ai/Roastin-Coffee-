@@ -8,6 +8,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('ticket-note')
     .setDescription('Add internal note to a ticket.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addStringOption(o => o.setName('text').setDescription('Note').setRequired(true)),
   async execute(interaction) {
     await interaction.deferReply({ ephemeral: true });

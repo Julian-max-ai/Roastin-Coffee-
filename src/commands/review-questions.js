@@ -8,6 +8,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('review-questions')
     .setDescription('Review-Fragen verwalten.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addSubcommand(s => s.setName('list').setDescription('Fragen anzeigen.'))
     .addSubcommand(s => s.setName('add').setDescription('Frage hinzufügen.')
       .addStringOption(o => o.setName('question').setDescription('Frage').setRequired(true)))

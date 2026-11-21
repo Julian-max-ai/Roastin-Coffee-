@@ -8,6 +8,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('macro')
     .setDescription('Send text snippets.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addSubcommand(s => s.setName('send').setDescription('Send a macro.')
       .addStringOption(o => o.setName('name').setDescription('Macro-Name').setRequired(true).setAutocomplete(true)))
     .addSubcommand(s => s.setName('add').setDescription('Create a macro.')

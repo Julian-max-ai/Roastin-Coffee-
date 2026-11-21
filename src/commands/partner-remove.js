@@ -8,7 +8,8 @@ const { isStaff } = require('../utils/permissions');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('partner-remove')
-    .setDescription('Remove partner (soft-delete).')
+    .setDescription('Remove partner (soft-delete)')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addStringOption(o => o.setName('name').setDescription('Partner').setRequired(true).setAutocomplete(true))
     .addBooleanOption(o => o.setName('delete-channel').setDescription('Delete channel?')),
   async autocomplete(interaction) {
