@@ -423,12 +423,7 @@ async function handleTicketConfirmClose(interaction) {
   const { guild, channel, member } = interaction;
   const cfg = await GuildConfig.findOne({ guildId: guild.id });
 
-  // Atomic: claim 'closing' status so double-click can't double-send
-  const ticket = await Ticket.findOneAndUpdate(
-    { guildId: guild.id, channelId, status: 'open' },
-    { status: 'closing' },
-    { new: true }
-  );
+  const ticket = await Ticket.findOne({ guildId: guild.id, channelId, status: 'open' });
   if (!ticket) return interaction.update(errorCard('Ticket already being closed or not found.'));
 
   const isStaffMember = isStaff(member, cfg);
@@ -437,99 +432,15 @@ async function handleTicketConfirmClose(interaction) {
     return interaction.update(errorCard('Only the ticket creator or staff can close this ticket.'));
   }
 
-  const closeReason = ticket.closeRequestReason || null;
-
-  // Build transcript (fetch up to 1000 messages)
-  const messages = [];
-  let lastId = null;
-  while (messages.length < 1000) {
-    const fetchLimit = Math.min(100, 1000 - messages.length);
-    const fetched = await channel.messages.fetch({ limit: fetchLimit, ...(lastId ? { before: lastId } : {}) }).catch(() => null);
-    if (!fetched || fetched.size === 0) break;
-    messages.push(...fetched.values());
-    lastId = fetched.last().id;
-    if (fetched.size < fetchLimit) break;
-  }
-  messages.sort((a, b) => a.createdAt - b.createdAt);
-
-  const escapeHtml = (str) => {
-    if (!str) return '';
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  };
-
-  let transcript = `Ticket Transcript — ${channel.name}\n`;
-  transcript += `Closed by: ${interaction.user.tag} at ${new Date().toISOString()} (UTC)\n`;
-  if (closeReason) transcript += `Reason: ${closeReason}\n`;
-  transcript += '─'.repeat(50) + '\n';
-
-  let htmlRows = '';
-  if (messages.length) {
-    for (const msg of messages) {
-      transcript += `[${msg.createdAt.toISOString()}] ${msg.author.tag}: ${msg.content || '[no text content]'}\n`;
-      if (msg.attachments.size) transcript += `  Attachments: ${msg.attachments.map(a => a.url).join(', ')}\n`;
-      const initials = msg.author.username.slice(0, 2).toUpperCase();
-      const contentEscaped = msg.content ? escapeHtml(msg.content) : '<em>[no text]</em>';
-      const authorEscaped = escapeHtml(msg.author.tag);
-      const attachLinks = msg.attachments.size
-        ? `<div class="attachments">${msg.attachments.map(a => `<a href="${escapeHtml(a.url)}" target="_blank">${escapeHtml(a.name)}</a>`).join(' ')}</div>`
-        : '';
-      htmlRows += `<div class="msg"><div class="avatar">${initials}</div><div class="body"><span class="author">${authorEscaped}</span><span class="time">${msg.createdAt.toISOString()} UTC</span><p>${contentEscaped}</p>${attachLinks}</div></div>\n`;
-    }
-  } else {
-    transcript += '(No messages found.)\n';
-  }
-
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Transcript — ${escapeHtml(channel.name)}</title>
-<style>body{font-family:sans-serif;background:#1e1e1e;color:#ddd;padding:20px;max-width:800px;margin:auto}
-.msg{display:flex;gap:12px;margin-bottom:16px}.avatar{width:40px;height:40px;border-radius:50%;background:#C68E4E;display:flex;align-items:center;justify-content:center;font-weight:bold;flex-shrink:0}
-.body{flex:1}.author{font-weight:bold;color:#C68E4E}.time{font-size:.8em;color:#888;margin-left:8px}p{margin:4px 0}.attachments a{color:#7ab4f5;font-size:.85em;margin-right:8px}
-h1{color:#C68E4E;border-bottom:1px solid #444;padding-bottom:8px}</style></head>
-<body><h1>🎫 ${escapeHtml(channel.name)}</h1><p>Closed by <strong>${escapeHtml(interaction.user.tag)}</strong> at ${new Date().toISOString()} UTC</p><hr>${htmlRows}</body></html>`;
-
-  const txtFile  = { attachment: Buffer.from(transcript, 'utf-8'), name: `transcript-${channel.name}.txt` };
-  const htmlFile = { attachment: Buffer.from(html, 'utf-8'), name: `transcript-${channel.name}.html` };
-
-  // Send to log channel — separate message for files (V2 compatibility)
-  if (cfg?.logChannel) {
-    const logCh = await interaction.client.channels.fetch(cfg.logChannel).catch(() => null);
-    if (logCh) {
-      await logCh.send(logCard(`${EMOJI.ticket} Ticket Closed — ${channel.name}`, `Closed by <@${interaction.user.id}>${closeReason ? `\n**Reason:** ${closeReason}` : ''}`)).catch(() => {});
-      await logCh.send({ content: '📎 Transcript files:', files: [txtFile, htmlFile] }).catch(() => {});
-    }
-  }
-
-  // DM transcript to opener
-  if (ticket.userId) {
-    try {
-      const opener = await interaction.client.users.fetch(ticket.userId);
-      await opener.send(successCard('Your ticket has been closed. Here is your transcript:', false)).catch(() => {});
-      await opener.send({ content: '📎 Transcript files:', files: [txtFile, htmlFile] }).catch(() => {});
-    } catch {}
-  }
-
-  // Update DB
-  await Ticket.findByIdAndUpdate(ticket._id, {
-    status: 'closed',
-    closedAt: new Date(),
+  await interaction.deferUpdate();
+  const result = await require('../services/ticketService').closeTicket(interaction.client, ticket._id.toString(), {
     closedBy: interaction.user.id,
-    closedReason: closeReason,
+    reason: ticket.closeRequestReason || null,
+    source: 'manual',
   });
-  await audit(guild.id, interaction.user.id, 'ticket_close', 'ticket', ticket._id.toString(), { channelName: channel.name, reason: closeReason });
 
-  // Send rating DM if enabled
-  if (cfg?.automation?.ticketRatingEnabled !== false && ticket.userId) {
-    try {
-      const opener = await interaction.client.users.fetch(ticket.userId);
-      await opener.send(ticketRatingCard(channel.name, ticket._id.toString())).catch(() => {});
-    } catch {}
-  }
-
-  await interaction.update(successCard(`Ticket closed. Deleting channel in ${TICKET_CLOSE_DELAY_MS / 1000} seconds.`));
-  setTimeout(() => channel.delete().catch(() => {}), TICKET_CLOSE_DELAY_MS);
+  if (!result) return interaction.followUp(errorCard('Ticket already being closed.')).catch(() => {});
+  await interaction.followUp(successCard(`Ticket closed. Deleting channel shortly.`)).catch(() => {});
 }
 
 async function handleTicketCancelClose(interaction) {
@@ -557,252 +468,22 @@ async function handleTicketAgreeClose(interaction) {
   const ticketId = interaction.customId.split(':')[1];
   const ticket = await Ticket.findById(ticketId);
   if (!ticket) return interaction.update(errorCard('Ticket not found.'));
-  if (interaction.user.id !== ticket.userId && !isStaff(interaction.member, await require('../models/GuildConfig').findOne({ guildId: ticket.guildId }))) {
+  const cfg = await GuildConfig.findOne({ guildId: ticket.guildId });
+  if (interaction.user.id !== ticket.userId && !isStaff(interaction.member, cfg)) {
     return interaction.update(errorCard('Only the ticket creator or staff can agree to close.'));
   }
-  const channel = interaction.client.channels.cache.get(ticket.channelId);
-  if (!channel) return interaction.update(errorCard('Ticket channel not found.'));
 
-  // Reuse the close flow by calling handleTicketConfirmClose logic directly
-  const cfg = await GuildConfig.findOne({ guildId: ticket.guildId });
-  const claimed = await Ticket.findOneAndUpdate(
-    { _id: ticketId, status: 'open' },
-    { status: 'closing' },
-    { new: true }
-  );
-  if (!claimed) return interaction.update(errorCard('Ticket already being closed.'));
-
-  // Build transcript quickly (already have channel)
-  const messages = [];
-  let lastId = null;
-  while (messages.length < 1000) {
-    const fetchLimit = Math.min(100, 1000 - messages.length);
-    const fetched = await channel.messages.fetch({ limit: fetchLimit, ...(lastId ? { before: lastId } : {}) }).catch(() => null);
-    if (!fetched || fetched.size === 0) break;
-    messages.push(...fetched.values());
-    lastId = fetched.last().id;
-    if (fetched.size < fetchLimit) break;
-  }
-  messages.sort((a, b) => a.createdAt - b.createdAt);
-
-  const escapeHtml = (str) => {
-    if (!str) return '';
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  };
-
-  let transcript = `Ticket Transcript — ${channel.name}\n`;
-  transcript += `Closed by: ${interaction.user.tag} at ${new Date().toISOString()} (UTC)\n`;
-  if (claimed.closeRequestReason) transcript += `Reason: ${claimed.closeRequestReason}\n`;
-  transcript += '─'.repeat(50) + '\n';
-
-  let htmlRows = '';
-  if (messages.length) {
-    for (const msg of messages) {
-      transcript += `[${msg.createdAt.toISOString()}] ${msg.author.tag}: ${msg.content || '[no text content]'}\n`;
-      if (msg.attachments.size) transcript += `  Attachments: ${msg.attachments.map(a => a.url).join(', ')}\n`;
-      const initials = msg.author.username.slice(0, 2).toUpperCase();
-      const contentEscaped = msg.content ? escapeHtml(msg.content) : '<em>[no text]</em>';
-      const authorEscaped = escapeHtml(msg.author.tag);
-      const attachLinks = msg.attachments.size
-        ? `<div class="attachments">${msg.attachments.map(a => `<a href="${escapeHtml(a.url)}" target="_blank">${escapeHtml(a.name)}</a>`).join(' ')}</div>`
-        : '';
-      htmlRows += `<div class="msg"><div class="avatar">${initials}</div><div class="body"><span class="author">${authorEscaped}</span><span class="time">${msg.createdAt.toISOString()} UTC</span><p>${contentEscaped}</p>${attachLinks}</div></div>\n`;
-    }
-  }
-
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Transcript — ${escapeHtml(channel.name)}</title>
-<style>body{font-family:sans-serif;background:#1e1e1e;color:#ddd;padding:20px;max-width:800px;margin:auto}
-.msg{display:flex;gap:12px;margin-bottom:16px}.avatar{width:40px;height:40px;border-radius:50%;background:#C68E4E;display:flex;align-items:center;justify-content:center;font-weight:bold;flex-shrink:0}
-.body{flex:1}.author{font-weight:bold;color:#C68E4E}.time{font-size:.8em;color:#888;margin-left:8px}p{margin:4px 0}.attachments a{color:#7ab4f5;font-size:.85em;margin-right:8px}
-h1{color:#C68E4E;border-bottom:1px solid #444;padding-bottom:8px}</style></head>
-<body><h1>🎫 ${escapeHtml(channel.name)}</h1><p>Closed by <strong>${escapeHtml(interaction.user.tag)}</strong> at ${new Date().toISOString()} UTC</p><hr>${htmlRows}</body></html>`;
-
-  const txtFile  = { attachment: Buffer.from(transcript, 'utf-8'), name: `transcript-${channel.name}.txt` };
-  const htmlFile = { attachment: Buffer.from(html, 'utf-8'), name: `transcript-${channel.name}.html` };
-
-  if (cfg?.logChannel) {
-    const logCh = await interaction.client.channels.fetch(cfg.logChannel).catch(() => null);
-    if (logCh) {
-      await logCh.send(logCard(`${EMOJI.ticket} Ticket Closed — ${channel.name}`, `Closed by <@${interaction.user.id}>${claimed.closeRequestReason ? `\n**Reason:** ${claimed.closeRequestReason}` : ''}`)).catch(() => {});
-      await logCh.send({ content: '📎 Transcript files:', files: [txtFile, htmlFile] }).catch(() => {});
-    }
-  }
-
-  if (claimed.userId) {
-    try {
-      const opener = await interaction.client.users.fetch(claimed.userId);
-      await opener.send(successCard('Your ticket has been closed. Here is your transcript:', false)).catch(() => {});
-      await opener.send({ content: '📎 Transcript files:', files: [txtFile, htmlFile] }).catch(() => {});
-    } catch {}
-  }
-
-  await Ticket.findByIdAndUpdate(ticketId, {
-    status: 'closed',
-    closedAt: new Date(),
+  await interaction.deferUpdate();
+  const result = await require('../services/ticketService').closeTicket(interaction.client, ticketId, {
     closedBy: interaction.user.id,
-    closedReason: claimed.closeRequestReason || null,
+    reason: ticket.closeRequestReason || null,
+    source: 'close_request',
   });
-  await audit(claimed.guildId, interaction.user.id, 'ticket_close', 'ticket', ticketId, { channelName: channel.name, reason: claimed.closeRequestReason });
 
-  if (cfg?.automation?.ticketRatingEnabled !== false && claimed.userId) {
-    try {
-      const opener = await interaction.client.users.fetch(claimed.userId);
-      await opener.send(ticketRatingCard(channel.name, ticketId)).catch(() => {});
-    } catch {}
-  }
-
-  await interaction.update(successCard(`Ticket closed. Deleting channel in ${TICKET_CLOSE_DELAY_MS / 1000} seconds.`));
-  setTimeout(() => channel.delete().catch(() => {}), TICKET_CLOSE_DELAY_MS);
+  if (!result) return interaction.followUp(errorCard('Ticket already being closed.')).catch(() => {});
+  await interaction.followUp(successCard(`Ticket closed. Deleting channel shortly.`)).catch(() => {});
 }
 
-async function handleTicketClaim(interaction) {
-  await interaction.deferUpdate();
-  const { member, channel, guild } = interaction;
-  const cfg = await GuildConfig.findOne({ guildId: guild.id });
-  if (!isStaff(member, cfg)) {
-    return interaction.followUp(errorCard('Only staff can claim tickets.'));
-  }
-
-  // A1: Prevent double-claim — claimedBy must be null
-  const ticket = await Ticket.findOneAndUpdate(
-    { guildId: guild.id, channelId: channel.id, status: 'open', claimedBy: null },
-    { claimedBy: interaction.user.id },
-    { new: true }
-  );
-  if (!ticket) {
-    const existing = await Ticket.findOne({ guildId: guild.id, channelId: channel.id, status: 'open' });
-    if (existing && existing.claimedBy) {
-      return interaction.followUp(errorCard(`Already claimed by <@${existing.claimedBy}>.`));
-    }
-    return interaction.followUp(errorCard('Ticket not found.'));
-  }
-
-  const type = await TicketType.findOne({ guildId: guild.id, customId: ticket.typeId });
-  if (!type) return interaction.followUp(errorCard('Ticket type not found.'));
-
-  // A1: Update welcome card + send feedback to channel
-  await interaction.editReply(ticketWelcomeCard(type, { id: ticket.userId }, interaction.user.id, ticket.priority));
-
-  if (ticket.welcomeMessageId) {
-    try {
-      const welcomeMsg = await channel.messages.fetch(ticket.welcomeMessageId).catch(() => null);
-      if (welcomeMsg) {
-        await welcomeMsg.edit(ticketWelcomeCard(type, { id: ticket.userId }, interaction.user.id, ticket.priority)).catch(() => {});
-      }
-    } catch {}
-  }
-
-  try {
-    await channel.send({ ...card({
-      title: `${EMOJI.claim} Ticket Claimed`,
-      description: `🙋 <@${interaction.user.id}> has claimed this ticket and will assist you shortly.\nPing: <@${ticket.userId}>`,
-      color: COLORS.primary,
-      buttons: [],
-      ephemeral: false,
-    }), allowedMentions: { users: [ticket.userId] } }).catch(() => {});
-  } catch {}
-
-  await audit(guild.id, interaction.user.id, 'ticket_claim', 'ticket', ticket._id.toString());
-}
-
-async function handleTicketRelease(interaction) {
-  await interaction.deferUpdate();
-  const { member, channel, guild } = interaction;
-  const cfg = await GuildConfig.findOne({ guildId: guild.id });
-  if (!isStaff(member, cfg)) {
-    return interaction.followUp(errorCard('Only staff can release tickets.'));
-  }
-
-  // A1: Staff with Manage Guild can release any claim
-  const isManageGuild = interaction.member.permissions.has(PermissionFlagsBits.ManageGuild);
-  const filter = isManageGuild
-    ? { guildId: guild.id, channelId: channel.id, status: 'open', claimedBy: { $ne: null } }
-    : { guildId: guild.id, channelId: channel.id, status: 'open', claimedBy: interaction.user.id };
-
-  const ticket = await Ticket.findOneAndUpdate(filter, { claimedBy: null }, { new: true });
-  if (!ticket) {
-    const existing = await Ticket.findOne({ guildId: guild.id, channelId: channel.id, status: 'open' });
-    if (!existing) return interaction.followUp(errorCard('Ticket not found.'));
-    if (!existing.claimedBy) return interaction.followUp(errorCard('This ticket is not claimed.'));
-    return interaction.followUp(errorCard('You have not claimed this ticket.'));
-  }
-
-  const type = await TicketType.findOne({ guildId: guild.id, customId: ticket.typeId });
-  if (!type) return interaction.followUp(errorCard('Ticket type not found.'));
-
-  await interaction.editReply(ticketWelcomeCard(type, { id: ticket.userId }, null, ticket.priority));
-
-  if (ticket.welcomeMessageId) {
-    try {
-      const welcomeMsg = await channel.messages.fetch(ticket.welcomeMessageId).catch(() => null);
-      if (welcomeMsg) {
-        await welcomeMsg.edit(ticketWelcomeCard(type, { id: ticket.userId }, null, ticket.priority)).catch(() => {});
-      }
-    } catch {}
-  }
-
-  try {
-    await channel.send({ ...card({
-      title: `${EMOJI.release} Ticket Unassigned`,
-      description: `This ticket is unassigned again. A staff member will pick it up shortly.\nPing: <@${ticket.userId}>`,
-      color: COLORS.primary,
-      buttons: [],
-      ephemeral: false,
-    }), allowedMentions: { users: [ticket.userId] } }).catch(() => {});
-  } catch {}
-
-  await audit(guild.id, interaction.user.id, 'ticket_release', 'ticket', ticket._id.toString());
-}
-
-async function handleTicketRate(interaction) {
-  const parts = interaction.customId.split(':'); // ticket_rate:ID:STARS
-  const ticketId = parts[1];
-  const stars    = parseInt(parts[2], 10);
-
-  const ticket = await Ticket.findById(ticketId);
-  if (!ticket) return interaction.update(errorCard('Ticket not found.'));
-  if (ticket.ratingSentAt) return interaction.update(errorCard('You have already rated this ticket.'));
-
-  await Ticket.findByIdAndUpdate(ticketId, { rating: stars, ratingSentAt: new Date() });
-
-  // Ask for optional feedback
-  const modal = new ModalBuilder().setCustomId(`ticket_rate_feedback:${ticketId}:${stars}`).setTitle('Optional Feedback');
-  modal.addComponents(new ActionRowBuilder().addComponents(
-    new TextInputBuilder().setCustomId('feedback').setLabel('Any additional feedback? (optional)').setStyle(TextInputStyle.Paragraph).setRequired(false)
-  ));
-  return interaction.showModal(modal);
-}
-
-async function handleTicketRateFeedbackModal(interaction) {
-  const parts    = interaction.customId.split(':');
-  const ticketId = parts[1];
-  const stars    = parseInt(parts[2], 10);
-  const feedback = interaction.fields.getTextInputValue('feedback') || null;
-
-  const ticket = await Ticket.findByIdAndUpdate(ticketId, { ratingFeedback: feedback }, { new: true });
-
-  if (ticket) {
-    const GuildConfig = require('../models/GuildConfig');
-    const cfg = await GuildConfig.findOne({ guildId: ticket.guildId });
-    if (cfg?.logChannel) {
-      const logCh = await interaction.client.channels.fetch(cfg.logChannel).catch(() => null);
-      if (logCh) {
-        await logCh.send(logCard(
-          `${EMOJI.star} Ticket Rated`,
-          `Ticket \`${ticketId}\` rated **${'⭐'.repeat(stars)}** by <@${interaction.user.id}>${feedback ? `\n> ${feedback}` : ''}`
-        )).catch(() => {});
-      }
-    }
-  }
-
-  return interaction.reply(successCard(`Thank you for your feedback! You rated this ticket **${'⭐'.repeat(stars)}**`.replace('ephemeral', '')));
-}
-
-module.exports.handleTicketOpen             = handleTicketOpen;
 module.exports.handleTicketClose            = handleTicketClose;
 module.exports.handleTicketCloseRequest      = handleTicketCloseRequest;
 module.exports.handleTicketConfirmClose     = handleTicketConfirmClose;
