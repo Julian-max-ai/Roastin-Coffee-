@@ -12,7 +12,6 @@ const { inviteHealthJob } = require('./jobs/inviteHealth');
 const { weeklyEventDigestJob } = require('./jobs/weeklyEventDigest');
 const { unclaimedSLAJob } = require('./jobs/unclaimedSLA');
 const { pendingRenamesJob } = require('./jobs/pendingRenames');
-const { run: runSendToPartner } = require('./jobs/sendToPartner');
 const { run: runDashboardUpdate } = require('./jobs/dashboardUpdate');
 const { run: runWeeklyPRReport } = require('./jobs/weeklyPRReport');
 const { sendMonthlyReviews } = require('../commands/review');
@@ -111,11 +110,6 @@ function startScheduler(client) {
   // Dashboard auto-update — every 5 minutes
   cron.schedule('*/5 * * * *', async () => {
     await runDashboardUpdate(client).catch(err => console.error('[dashboardUpdate]', err));
-  });
-
-  // Send approved reviews to partner channels — every 30 minutes
-  cron.schedule('*/30 * * * *', async () => {
-    await runSendToPartner(client).catch(err => console.error('[sendToPartner]', err));
   });
 
   console.log('[scheduler] All jobs scheduled.');

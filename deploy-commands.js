@@ -1,3 +1,4 @@
+dabn Pack es in mehre sessions, avee das sjnd wichtige Punkte 
 require('dotenv').config();
 const { REST } = require('@discordjs/rest');
 const { Routes } = require('discord-api-types/v10');
