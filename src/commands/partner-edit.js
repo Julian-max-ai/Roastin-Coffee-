@@ -8,7 +8,7 @@ const { isStaff } = require('../utils/permissions');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('partner-edit')
-    .setDescription('Partner bearbeiten.')
+    .setDescription('Edit partner.')
     .addStringOption(o => o.setName('name').setDescription('Partner-Name').setRequired(true).setAutocomplete(true))
     .addStringOption(o => o.setName('newname').setDescription('Neuer Name'))
     .addStringOption(o => o.setName('roblox').setDescription('Neuer Roblox-Link'))
@@ -25,11 +25,11 @@ module.exports = {
     await interaction.deferReply({ ephemeral: true });
     const { guildId } = interaction;
     const cfg = await GuildConfig.findOne({ guildId });
-    if (!isStaff(interaction.member, cfg)) return interaction.editReply(errorCard('Nur Staff.'));
+    if (!isStaff(interaction.member, cfg)) return interaction.editReply(errorCard('Staff only.'));
 
     const name = interaction.options.getString('name');
     const partner = await Partner.findOne({ guildId, name });
-    if (!partner) return interaction.editReply(errorCard('Partner nicht gefunden.'));
+    if (!partner) return interaction.editReply(errorCard('Partner not found.'));
 
     const changes = [];
     if (interaction.options.getString('newname')) { partner.name = interaction.options.getString('newname'); changes.push('Name'); }

@@ -6,11 +6,11 @@ const { successCard, errorCard, infoCard } = require('../ui');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('setup')
-    .setDescription('Geführte Einrichtung des Bots.')
+    .setDescription('Guided bot setup.')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addSubcommand(s => s.setName('start').setDescription('Startet oder setzt den Setup-Assistenten fort.'))
     .addSubcommand(s => s.setName('status').setDescription('Zeigt den Setup-Fortschritt.'))
-    .addSubcommand(s => s.setName('help').setDescription('Erklärungen zu einem Thema.')
+    .addSubcommand(s => s.setName('help').setDescription('Explanations for a topic.')
       .addStringOption(o => o.setName('topic').setDescription('Thema').setRequired(true)
         .addChoices(
           { name: 'Rechte', value: 'rights' },
@@ -36,7 +36,7 @@ module.exports = {
         const done = progress[step] === true;
         desc += `${done ? '✅' : '⚠️'} ${step}\n`;
       }
-      desc += '\nNutze `/setup help topic:<name>` für Erklärungen.';
+      desc += '\nUse `/setup help topic:<name>` for explanations.';
       await interaction.editReply(infoCard('Setup', desc, true));
     }
 
@@ -50,9 +50,9 @@ module.exports = {
         reviews: 'Reviews: Monatlicher Ablauf, Fragen, Versandtag. /config → Reviews.',
         infractions: 'Infraktionen: Warning/Strike/Termination, Ablaufzeiten. /config → Infraktionen.',
         events: 'Events: Anfragen, Genehmigung, Reminder. /config → Events.',
-        automation: 'Automation: Inaktivität, Auto-Close, Reminder. /config → Automation.',
+        automation: 'Automation: Inactivity, Auto-Close, Reminders. /config → Automation.',
       };
-      await interaction.editReply(infoCard(`Setup Help: ${topic}`, helpTexts[topic] || 'Keine Hilfe verfügbar.', true));
+      await interaction.editReply(infoCard(`Setup Help: ${topic}`, helpTexts[topic] || 'No help available.', true));
     }
   },
 };

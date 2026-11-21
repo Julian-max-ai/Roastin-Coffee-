@@ -6,12 +6,12 @@ const { successCard, errorCard } = require('../ui');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('away')
-    .setDescription('Staff-Abwesenheit eintragen.')
-    .addSubcommand(s => s.setName('set').setDescription('Abwesenheit setzen.')
+    .setDescription('Staff-Set absence.')
+    .addSubcommand(s => s.setName('set').setDescription('Set absence.')
       .addStringOption(o => o.setName('from').setDescription('Von (YYYY-MM-DD)').setRequired(true))
       .addStringOption(o => o.setName('to').setDescription('Bis (YYYY-MM-DD)').setRequired(true))
       .addStringOption(o => o.setName('reason').setDescription('Grund').setRequired(false)))
-    .addSubcommand(s => s.setName('clear').setDescription('Abwesenheit beenden.')),
+    .addSubcommand(s => s.setName('clear').setDescription('Clear absence.')),
   async execute(interaction) {
     await interaction.deferReply({ ephemeral: true });
     const { guildId, user } = interaction;
@@ -26,13 +26,13 @@ module.exports = {
       const filtered = away.filter(a => a.userId !== user.id);
       filtered.push({ userId: user.id, from, to, reason });
       await GuildConfig.findOneAndUpdate({ guildId }, { awayList: filtered }, { upsert: true });
-      return interaction.editReply(successCard(`Abwesenheit eingetragen: ${from} bis ${to}.`));
+      return interaction.editReply(successCard(`Absence set: ${from} bis ${to}.`));
     }
 
     if (sub === 'clear') {
       const away = (cfg?.awayList || []).filter(a => a.userId !== user.id);
       await GuildConfig.findOneAndUpdate({ guildId }, { awayList: away }, { upsert: true });
-      return interaction.editReply(successCard('Abwesenheit beendet.'));
+      return interaction.editReply(successCard('Absence cleared.'));
     }
   },
 };

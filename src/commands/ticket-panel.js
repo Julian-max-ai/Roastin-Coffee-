@@ -371,8 +371,8 @@ async function handleTicketCloseRequest(interaction) {
     description: `A staff member has requested to close this ticket.\n\n**Requested by:** <@${interaction.user.id}>${reason ? `\n**Reason:** ${reason}` : ''}\n\nWill be auto-closed <t:${Math.floor(closeAt.getTime() / 1000)}:R> if no response.`,
     color: COLORS.warning,
     buttons: [
-      new ButtonBuilder().setCustomId(`ticket_agree_close:${ticket._id}`).setLabel('Schließen').setStyle(ButtonStyle.Danger),
-      new ButtonBuilder().setCustomId(`ticket_keep_open:${ticket._id}`).setLabel('Offen lassen').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`ticket_agree_close:${ticket._id}`).setLabel('Close').setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(`ticket_keep_open:${ticket._id}`).setLabel('Keep Open').setStyle(ButtonStyle.Secondary),
     ],
     ephemeral: false,
   });

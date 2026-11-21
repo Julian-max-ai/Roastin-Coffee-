@@ -178,6 +178,6 @@ async function route(interaction, client) {
     }
 
     // Unknown customId
-    return interaction.reply({ content: 'Diese Schaltfläche ist veraltet.', ephemeral: true }).catch(() => {});
+    return interaction.reply({ content: 'This button is outdated.', ephemeral: true }).catch(() => {});
   }
 }

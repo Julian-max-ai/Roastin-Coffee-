@@ -10,7 +10,7 @@ const { isStaff } = require('../utils/permissions');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('partner-history')
-    .setDescription('Partner-Historie anzeigen.')
+    .setDescription('Show partner history.')
     .addStringOption(o => o.setName('partner').setDescription('Partner').setRequired(true).setAutocomplete(true)),
   async autocomplete(interaction) {
     const partners = await Partner.find({ guildId: interaction.guildId });
@@ -21,11 +21,11 @@ module.exports = {
     await interaction.deferReply({ ephemeral: true });
     const { guildId } = interaction;
     const cfg = await GuildConfig.findOne({ guildId });
-    if (!isStaff(interaction.member, cfg)) return interaction.editReply(errorCard('Nur Staff.'));
+    if (!isStaff(interaction.member, cfg)) return interaction.editReply(errorCard('Staff only.'));
 
     const name = interaction.options.getString('partner');
     const partner = await Partner.findOne({ guildId, name });
-    if (!partner) return interaction.editReply(errorCard('Partner nicht gefunden.'));
+    if (!partner) return interaction.editReply(errorCard('Partner not found.'));
 
     const infractions = await Infraction.find({ guildId, partnerId: partner._id.toString() }).sort({ createdAt: -1 }).limit(5);
     const tickets = await Ticket.find({ guildId, userId: partner.representativeId }).sort({ openedAt: -1 }).limit(5);
@@ -35,7 +35,7 @@ module.exports = {
     for (const inf of infractions) desc += `> ${inf.type} — ${inf.reason} (${inf.issuedAt?.toISOString()?.slice(0, 10) || ''})\n`;
     desc += `\n**Tickets (${tickets.length}):**\n`;
     for (const t of tickets) desc += `> #${t.ticketNumber || '?'} — ${t.status} (${t.openedAt?.toISOString()?.slice(0, 10) || ''})\n`;
-    desc += `\n**Notizen:** ${(partner.notes || []).length}`;
+    desc += `\n**Noteen:** ${(partner.notes || []).length}`;
 
     await interaction.editReply(successCard(desc));
   },

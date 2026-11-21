@@ -10,7 +10,7 @@ const { isStaff } = require('../utils/permissions');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('partner-info')
-    .setDescription('Partner-Informationen anzeigen.')
+    .setDescription('Show partner information.')
     .addStringOption(o => o.setName('name').setDescription('Partner').setRequired(true).setAutocomplete(true)),
   async autocomplete(interaction) {
     const partners = await Partner.find({ guildId: interaction.guildId });
@@ -21,11 +21,11 @@ module.exports = {
     await interaction.deferReply({ ephemeral: true });
     const { guildId } = interaction;
     const cfg = await GuildConfig.findOne({ guildId });
-    if (!isStaff(interaction.member, cfg)) return interaction.editReply(errorCard('Nur Staff.'));
+    if (!isStaff(interaction.member, cfg)) return interaction.editReply(errorCard('Staff only.'));
 
     const name = interaction.options.getString('name');
     const partner = await Partner.findOne({ guildId, name });
-    if (!partner) return interaction.editReply(errorCard('Partner nicht gefunden.'));
+    if (!partner) return interaction.editReply(errorCard('Partner not found.'));
 
     const reps = partner.representativeIds?.length ? partner.representativeIds : [partner.representativeId];
     const activeStrikes = await Infraction.countDocuments({ guildId, partnerId: partner._id.toString(), type: 'strike', removed: false, expired: false });
@@ -33,13 +33,13 @@ module.exports = {
 
     let desc = `**${partner.name}**\n`;
     desc += `Status: ${partner.status}\n`;
-    desc += `Channel: ${partner.channelId ? `<#${partner.channelId}>` : 'Kein Channel'}\n`;
+    desc += `Channel: ${partner.channelId ? `<#${partner.channelId}>` : 'No channel'}\n`;
     desc += `Reps: ${reps.map(r => `<@${r}>`).join(', ')}\n`;
     desc += `Seit: ${partner.addedAt?.toISOString()?.slice(0, 10) || 'n/a'}\n`;
     desc += `Strikes: ${activeStrikes}\n`;
     desc += `Tickets: ${tickets}\n`;
-    desc += `Notizen: ${(partner.notes || []).length}\n`;
-    if (partner.channelMissing) desc += `⚠️ Channel fehlt!\n`;
+    desc += `Noteen: ${(partner.notes || []).length}\n`;
+    if (partner.channelMissing) desc += `⚠️ Channel missing!\n`;
 
     await interaction.editReply(successCard(desc));
   },

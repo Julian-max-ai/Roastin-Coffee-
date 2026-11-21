@@ -29,7 +29,7 @@ async function requireLevel(interaction, minLevel, client) {
   if (hasLevel(member, cfg, minLevel)) return true;
   const labels = { ADMIN: 'Admin', STAFF: 'PR Staff', PARTNER_REP: 'Partner Representative' };
   const needed = typeof minLevel === 'string' ? minLevel : Object.keys(LEVEL).find(k => LEVEL[k] === minLevel);
-  await interaction.reply({ content: `Dafür brauchst du die Rolle **${labels[needed] || needed}**.`, ephemeral: true }).catch(() => {});
+  await interaction.reply({ content: `You need the role **${labels[needed] || needed}**.`, ephemeral: true }).catch(() => {});
   return false;
 }
 

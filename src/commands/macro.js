@@ -7,15 +7,15 @@ const { isStaff } = require('../utils/permissions');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('macro')
-    .setDescription('Textbausteine senden.')
-    .addSubcommand(s => s.setName('send').setDescription('Sendet einen Makro.')
-      .addStringOption(o => o.setName('name').setDescription('Makro-Name').setRequired(true).setAutocomplete(true)))
-    .addSubcommand(s => s.setName('add').setDescription('Erstellt einen Makro.')
+    .setDescription('Send text snippets.')
+    .addSubcommand(s => s.setName('send').setDescription('Send a macro.')
+      .addStringOption(o => o.setName('name').setDescription('Macro-Name').setRequired(true).setAutocomplete(true)))
+    .addSubcommand(s => s.setName('add').setDescription('Create a macro.')
       .addStringOption(o => o.setName('name').setDescription('Name').setRequired(true))
       .addStringOption(o => o.setName('text').setDescription('Text').setRequired(true)))
-    .addSubcommand(s => s.setName('remove').setDescription('Entfernt einen Makro.')
+    .addSubcommand(s => s.setName('remove').setDescription('Remove a macro.')
       .addStringOption(o => o.setName('name').setDescription('Name').setRequired(true).setAutocomplete(true)))
-    .addSubcommand(s => s.setName('list').setDescription('Listet alle Makros.')),
+    .addSubcommand(s => s.setName('list').setDescription('List all macros.')),
   async autocomplete(interaction) {
     const cfg = await GuildConfig.findOne({ guildId: interaction.guildId });
     const macros = cfg?.macros || [];
@@ -32,36 +32,36 @@ module.exports = {
 
     if (sub === 'list') {
       const macros = cfg?.macros || [];
-      if (!macros.length) return interaction.editReply(errorCard('Keine Makros vorhanden.'));
+      if (!macros.length) return interaction.editReply(errorCard('No macros available.'));
       const desc = macros.map(m => `**${m.name}**: ${m.text.slice(0, 100)}`).join('\n');
       return interaction.editReply(successCard(desc));
     }
 
     if (sub === 'add') {
-      if (!isStaff(interaction.member, cfg)) return interaction.editReply(errorCard('Nur Staff.'));
+      if (!isStaff(interaction.member, cfg)) return interaction.editReply(errorCard('Staff only.'));
       const name = interaction.options.getString('name');
       const text = interaction.options.getString('text');
       const macros = cfg?.macros || [];
-      if (macros.find(m => m.name === name)) return interaction.editReply(errorCard('Makro existiert bereits.'));
+      if (macros.find(m => m.name === name)) return interaction.editReply(errorCard('Macro already exists.'));
       macros.push({ name, text });
       await GuildConfig.findOneAndUpdate({ guildId }, { macros }, { upsert: true });
-      return interaction.editReply(successCard(`Makro **${name}** erstellt.`));
+      return interaction.editReply(successCard(`Macro **${name}** created.`));
     }
 
     if (sub === 'remove') {
-      if (!isStaff(interaction.member, cfg)) return interaction.editReply(errorCard('Nur Staff.'));
+      if (!isStaff(interaction.member, cfg)) return interaction.editReply(errorCard('Staff only.'));
       const name = interaction.options.getString('name');
       const macros = (cfg?.macros || []).filter(m => m.name !== name);
       await GuildConfig.findOneAndUpdate({ guildId }, { macros }, { upsert: true });
-      return interaction.editReply(successCard(`Makro **${name}** entfernt.`));
+      return interaction.editReply(successCard(`Macro **${name}** removed.`));
     }
 
     if (sub === 'send') {
       const name = interaction.options.getString('name');
       const macro = (cfg?.macros || []).find(m => m.name === name);
-      if (!macro) return interaction.editReply(errorCard('Makro nicht gefunden.'));
+      if (!macro) return interaction.editReply(errorCard('Macro nicht gefunden.'));
       await interaction.channel.send(macro.text).catch(() => {});
-      return interaction.editReply(successCard(`Makro **${name}** gesendet.`));
+      return interaction.editReply(successCard(`Macro **${name}** sent.`));
     }
   },
 };

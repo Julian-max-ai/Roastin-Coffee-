@@ -8,9 +8,9 @@ const { isStaff } = require('../utils/permissions');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('partner-remove')
-    .setDescription('Partner entfernen (Soft-Delete).')
+    .setDescription('Remove partner (soft-delete).')
     .addStringOption(o => o.setName('name').setDescription('Partner').setRequired(true).setAutocomplete(true))
-    .addBooleanOption(o => o.setName('delete-channel').setDescription('Channel löschen?')),
+    .addBooleanOption(o => o.setName('delete-channel').setDescription('Delete channel?')),
   async autocomplete(interaction) {
     const partners = await Partner.find({ guildId: interaction.guildId, status: { $ne: 'removed' } });
     const focused = interaction.options.getFocused().toLowerCase();
@@ -20,11 +20,11 @@ module.exports = {
     await interaction.deferReply({ ephemeral: true });
     const { guildId, guild } = interaction;
     const cfg = await GuildConfig.findOne({ guildId });
-    if (!isStaff(interaction.member, cfg)) return interaction.editReply(errorCard('Nur Staff.'));
+    if (!isStaff(interaction.member, cfg)) return interaction.editReply(errorCard('Staff only.'));
 
     const name = interaction.options.getString('name');
     const partner = await Partner.findOne({ guildId, name, status: { $ne: 'removed' } });
-    if (!partner) return interaction.editReply(errorCard('Partner nicht gefunden.'));
+    if (!partner) return interaction.editReply(errorCard('Partner not found.'));
 
     partner.status = 'removed';
     await partner.save();
@@ -35,6 +35,6 @@ module.exports = {
     }
 
     await require('../utils/audit').audit(guildId, interaction.user.id, 'partner_remove', 'partner', partner._id.toString(), { name });
-    await interaction.editReply(successCard(`**${name}** wurde entfernt (Soft-Delete).`));
+    await interaction.editReply(successCard(`**${name}** was removed (soft-delete).`));
   },
 };

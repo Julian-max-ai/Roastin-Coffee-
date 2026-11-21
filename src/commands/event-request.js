@@ -38,7 +38,7 @@ module.exports = {
     if (timeStr) {
       const parsed = new Date(timeStr.replace(' ', 'T') + ':00Z');
       if (isNaN(parsed.getTime())) {
-        return interaction.reply(errorCard('Ungültiges Zeitformat. Bitte verwende: YYYY-MM-DD HH:mm (UTC), z.B. 2025-07-20 15:00'));
+        return interaction.reply(errorCard('Invalid time format. Please use: YYYY-MM-DD HH:mm (UTC), e.g. 2025-07-20 15:00'));
       }
       startsAt = parsed;
     }
@@ -120,7 +120,7 @@ async function handleEventDenyModal(interaction) {
 
   const req = await EventRequest.findOne({ _id: reqId, guildId });
   if (!req || req.status !== 'pending') {
-    return interaction.reply({ content: 'Request nicht gefunden oder bereits entschieden.', ephemeral: true });
+    return interaction.reply({ content: 'Request not found or already decided.', ephemeral: true });
   }
 
   await EventRequest.findByIdAndUpdate(reqId, { status: 'denied', decidedBy: interaction.user.id, decidedAt: new Date(), denyReason: reason });

@@ -8,11 +8,11 @@ const { isStaff } = require('../utils/permissions');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('partner-note')
-    .setDescription('Partner-Notizen verwalten.')
-    .addSubcommand(s => s.setName('add').setDescription('Notiz hinzufügen.')
+    .setDescription('Manage partner notes.')
+    .addSubcommand(s => s.setName('add').setDescription('Add note.')
       .addStringOption(o => o.setName('partner').setDescription('Partner').setRequired(true).setAutocomplete(true))
-      .addStringOption(o => o.setName('text').setDescription('Notiz').setRequired(true)))
-    .addSubcommand(s => s.setName('list').setDescription('Notizen anzeigen.')
+      .addStringOption(o => o.setName('text').setDescription('Note').setRequired(true)))
+    .addSubcommand(s => s.setName('list').setDescription('Noteen anzeigen.')
       .addStringOption(o => o.setName('partner').setDescription('Partner').setRequired(true).setAutocomplete(true))),
   async autocomplete(interaction) {
     const partners = await Partner.find({ guildId: interaction.guildId });
@@ -23,11 +23,11 @@ module.exports = {
     await interaction.deferReply({ ephemeral: true });
     const { guildId } = interaction;
     const cfg = await GuildConfig.findOne({ guildId });
-    if (!isStaff(interaction.member, cfg)) return interaction.editReply(errorCard('Nur Staff.'));
+    if (!isStaff(interaction.member, cfg)) return interaction.editReply(errorCard('Staff only.'));
 
     const name = interaction.options.getString('partner');
     const partner = await Partner.findOne({ guildId, name });
-    if (!partner) return interaction.editReply(errorCard('Partner nicht gefunden.'));
+    if (!partner) return interaction.editReply(errorCard('Partner not found.'));
 
     const sub = interaction.options.getSubcommand();
     if (sub === 'add') {
@@ -36,12 +36,12 @@ module.exports = {
       partner.notes.push({ text, authorId: interaction.user.id, createdAt: new Date() });
       await partner.save();
       await require('../utils/audit').audit(guildId, interaction.user.id, 'partner_note_add', 'partner', partner._id.toString());
-      return interaction.editReply(successCard('Notiz hinzugefügt.'));
+      return interaction.editReply(successCard('Note added.'));
     }
 
     if (sub === 'list') {
       const notes = partner.notes || [];
-      if (!notes.length) return interaction.editReply(errorCard('Keine Notizen.'));
+      if (!notes.length) return interaction.editReply(errorCard('Keine Noteen.'));
       const desc = notes.map(n => `> ${n.text}\n-# <@${n.authorId}> · ${n.createdAt?.toISOString() || ''}`).join('\n\n');
       return interaction.editReply(successCard(desc));
     }

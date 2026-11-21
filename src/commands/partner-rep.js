@@ -9,11 +9,11 @@ const { createPartnerChannel } = require('../utils/partnerChannelCreate');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('partner-rep')
-    .setDescription('Partner-Repräsentanten verwalten.')
-    .addSubcommand(s => s.setName('add').setDescription('Rep hinzufügen.')
+    .setDescription('Manage partner representatives.')
+    .addSubcommand(s => s.setName('add').setDescription('Add rep.')
       .addStringOption(o => o.setName('partner').setDescription('Partner').setRequired(true).setAutocomplete(true))
       .addUserOption(o => o.setName('user').setDescription('User').setRequired(true)))
-    .addSubcommand(s => s.setName('remove').setDescription('Rep entfernen.')
+    .addSubcommand(s => s.setName('remove').setDescription('Remove rep.')
       .addStringOption(o => o.setName('partner').setDescription('Partner').setRequired(true).setAutocomplete(true))
       .addUserOption(o => o.setName('user').setDescription('User').setRequired(true))),
   async autocomplete(interaction) {
@@ -25,11 +25,11 @@ module.exports = {
     await interaction.deferReply({ ephemeral: true });
     const { guildId } = interaction;
     const cfg = await GuildConfig.findOne({ guildId });
-    if (!isStaff(interaction.member, cfg)) return interaction.editReply(errorCard('Nur Staff.'));
+    if (!isStaff(interaction.member, cfg)) return interaction.editReply(errorCard('Staff only.'));
 
     const name = interaction.options.getString('partner');
     const partner = await Partner.findOne({ guildId, name });
-    if (!partner) return interaction.editReply(errorCard('Partner nicht gefunden.'));
+    if (!partner) return interaction.editReply(errorCard('Partner not found.'));
 
     const user = interaction.options.getUser('user');
     if (!partner.representativeIds) partner.representativeIds = [];
@@ -39,7 +39,7 @@ module.exports = {
 
     const sub = interaction.options.getSubcommand();
     if (sub === 'add') {
-      if (partner.representativeIds.includes(user.id)) return interaction.editReply(errorCard('User ist bereits Rep.'));
+      if (partner.representativeIds.includes(user.id)) return interaction.editReply(errorCard('User is already a rep.'));
       partner.representativeIds.push(user.id);
       await partner.save();
       // Auto-assign role
@@ -50,16 +50,16 @@ module.exports = {
         } catch {}
       }
       await require('../utils/audit').audit(guildId, interaction.user.id, 'partner_rep_add', 'partner', partner._id.toString(), { userId: user.id });
-      return interaction.editReply(successCard(`**${user.tag}** als Rep von **${name}** hinzugefügt.`));
+      return interaction.editReply(successCard(`**${user.tag}** as rep of **${name}** added.`));
     }
 
     if (sub === 'remove') {
-      if (partner.representativeIds.length <= 1) return interaction.editReply(errorCard('Mindestens ein Rep muss bleiben.'));
+      if (partner.representativeIds.length <= 1) return interaction.editReply(errorCard('At least one rep must remain.'));
       partner.representativeIds = partner.representativeIds.filter(id => id !== user.id);
       if (partner.representativeId === user.id) partner.representativeId = partner.representativeIds[0];
       await partner.save();
       await require('../utils/audit').audit(guildId, interaction.user.id, 'partner_rep_remove', 'partner', partner._id.toString(), { userId: user.id });
-      return interaction.editReply(successCard(`**${user.tag}** als Rep von **${name}** entfernt.`));
+      return interaction.editReply(successCard(`**${user.tag}** as rep of **${name}** removed.`));
     }
   },
 };

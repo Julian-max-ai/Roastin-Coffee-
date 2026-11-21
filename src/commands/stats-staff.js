@@ -7,13 +7,13 @@ const { isStaff } = require('../utils/permissions');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('stats-staff')
-    .setDescription('Staff-Statistiken.')
+    .setDescription('Staff statistics.')
     .addUserOption(o => o.setName('user').setDescription('Staff-Mitglied').setRequired(true)),
   async execute(interaction) {
     await interaction.deferReply({ ephemeral: true });
     const { guildId } = interaction;
     const cfg = await require('../models/GuildConfig').findOne({ guildId });
-    if (!isStaff(interaction.member, cfg)) return interaction.editReply(errorCard('Nur Staff.'));
+    if (!isStaff(interaction.member, cfg)) return interaction.editReply(errorCard('Staff only.'));
 
     const userId = interaction.options.getUser('user').id;
     const claimed = await Ticket.countDocuments({ guildId, claimedBy: userId });

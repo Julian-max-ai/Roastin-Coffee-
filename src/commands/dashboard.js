@@ -9,14 +9,14 @@ const { isStaff } = require('../utils/permissions');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('dashboard')
-    .setDescription('Staff-Dashboard (offene Tickets, Reviews, Strikes).')
+    .setDescription('Staff dashboard (open tickets, reviews, strikes).')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
   async execute(interaction) {
     await interaction.deferReply({ ephemeral: true });
     const { guildId } = interaction;
     const cfg = await require('../models/GuildConfig').findOne({ guildId });
 
-    if (!isStaff(interaction.member, cfg)) return interaction.editReply(errorCard('Nur Staff.'));
+    if (!isStaff(interaction.member, cfg)) return interaction.editReply(errorCard('Staff only.'));
 
     const openTickets = await Ticket.countDocuments({ guildId, status: 'open' });
     const unclaimed = await Ticket.countDocuments({ guildId, status: 'open', claimedBy: null });

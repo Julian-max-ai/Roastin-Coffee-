@@ -10,7 +10,7 @@ const { createPartnerChannel } = require('../utils/partnerChannelCreate');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('partner-add')
-    .setDescription('Partner hinzufügen.')
+    .setDescription('Add partner.')
     .addStringOption(o => o.setName('name').setDescription('Name').setRequired(true))
     .addStringOption(o => o.setName('roblox').setDescription('Roblox-Link').setRequired(true))
     .addStringOption(o => o.setName('discord').setDescription('Discord-Invite').setRequired(true))
@@ -21,16 +21,16 @@ module.exports = {
     await interaction.deferReply({ ephemeral: true });
     const { guildId, guild } = interaction;
     const cfg = await GuildConfig.findOne({ guildId });
-    if (!isStaff(interaction.member, cfg)) return interaction.editReply(errorCard('Nur Staff.'));
+    if (!isStaff(interaction.member, cfg)) return interaction.editReply(errorCard('Staff only.'));
 
     const name = interaction.options.getString('name');
     const roblox = interaction.options.getString('roblox');
     const disc = interaction.options.getString('discord');
     const rep = interaction.options.getUser('representative');
 
-    if (!isRobloxLink(roblox)) return interaction.editReply(errorCard('Ungültiger Roblox-Link.'));
-    if (!isDiscordInvite(disc)) return interaction.editReply(errorCard('Ungültiger Discord-Invite.'));
-    if (await Partner.findOne({ guildId, name })) return interaction.editReply(errorCard(`Partner **${name}** existiert bereits.`));
+    if (!isRobloxLink(roblox)) return interaction.editReply(errorCard('Invalid Roblox link.'));
+    if (!isDiscordInvite(disc)) return interaction.editReply(errorCard('Invalid Discord invite.'));
+    if (await Partner.findOne({ guildId, name })) return interaction.editReply(errorCard(`Partner **${name}** already exists.`));
 
     const partner = await Partner.create({
       guildId, name, robloxLink: roblox, discordInvite: disc,
@@ -58,8 +58,8 @@ module.exports = {
 
     await require('../utils/audit').audit(guildId, interaction.user.id, 'partner_add', 'partner', partner._id.toString(), { name, channel: channel?.id });
 
-    let desc = `**${name}** hinzugefügt.\n`;
-    desc += `Channel: ${channel ? `<#${channel.id}>` : 'Kein Channel'}\n`;
+    let desc = `**${name}** added.\n`;
+    desc += `Channel: ${channel ? `<#${channel.id}>` : 'No channel'}\n`;
     desc += `Rep-Rolle: ${roleAssigned ? '✅' : '❌'}`;
     await interaction.editReply(successCard(desc));
   },

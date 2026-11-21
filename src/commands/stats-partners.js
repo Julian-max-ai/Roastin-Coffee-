@@ -8,13 +8,13 @@ const { isStaff } = require('../utils/permissions');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('stats-partners')
-    .setDescription('Partner-Statistiken.')
+    .setDescription('Partner statistics.')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
   async execute(interaction) {
     await interaction.deferReply({ ephemeral: true });
     const { guildId } = interaction;
     const cfg = await require('../models/GuildConfig').findOne({ guildId });
-    if (!isStaff(interaction.member, cfg)) return interaction.editReply(errorCard('Nur Staff.'));
+    if (!isStaff(interaction.member, cfg)) return interaction.editReply(errorCard('Staff only.'));
 
     const total = await Partner.countDocuments({ guildId });
     const active = await Partner.countDocuments({ guildId, status: 'active' });
