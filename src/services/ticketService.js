@@ -62,8 +62,8 @@ async function buildTranscript(channel, ticket, closedByTag, closeReason) {
 h1{color:#C68E4E;border-bottom:1px solid #444;padding-bottom:8px}</style></head>
 <body><h1>🎫 ${escapeHtml(channel.name)}</h1><p>Closed by <strong>${escapeHtml(closedByTag)}</strong> at ${new Date().toISOString()} UTC</p><hr>${htmlRows}</body></html>`;
 
-  const txtFile = { attachment: Buffer.from(transcript, 'utf-8'), name: `transcript-${channel.name}.txt` };
-  const htmlFile = { attachment: Buffer.from(html, 'utf-8'), name: `transcript-${channel.name}.html` };
+  const txtFile = { attachment: Buffer.from(transcript, 'utf-8'), name: `transcript-${String(ticket.ticketNumber || 0).padStart(4, '0')}.txt` };
+  const htmlFile = { attachment: Buffer.from(html, 'utf-8'), name: `transcript-${String(ticket.ticketNumber || 0).padStart(4, '0')}.html` };
 
   return { txtFile, htmlFile, messageCount: messages.length };
 }
@@ -116,7 +116,7 @@ async function closeTicket(client, ticketId, { closedBy, reason, source }) {
       const closedByDisplay = closedBy === 'system' ? 'Automatic' : `<@${closedBy}>`;
 
       const summaryCard = (require('../ui')).card({
-        title: `${require('../theme').EMOJI.ticket} Ticket Closed — #${updated.ticketNumber || '?'}`,
+        title: `${require('../theme').EMOJI.ticket} Ticket Closed — #${String(updated.ticketNumber || 0).padStart(4, '0')}`,
         description: `**Type:** ${updated.typeId}\n**Opener:** <@${updated.userId}>\n**Claimer:** ${updated.claimedBy ? `<@${updated.claimedBy}>` : 'Never claimed'}\n**Closed by:** ${closedByDisplay}\n**Reason:** ${reason || 'None'}\n**Source:** ${source}\n**Opened:** <t:${openedAt ? Math.floor(openedAt.getTime() / 1000) : 0}:f>\n**Closed:** <t:${Math.floor(closedAt.getTime() / 1000)}:f>\n**Duration:** ${durationStr}\n**First Staff Reply:** ${firstReplyStr}\n**Messages:** ${messageCount || (txtFile ? 'Transcript attached' : 'N/A')}`,
         color: require('../theme').COLORS.dark,
         buttons: [],

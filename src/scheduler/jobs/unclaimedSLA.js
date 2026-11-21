@@ -25,7 +25,7 @@ async function unclaimedSLAJob(client, setLastRun) {
         try {
           if (alertChannel) {
             await alertChannel.send({
-              content: `${pingRole ? `<@&${pingRole}> ` : ''}⏰ Ticket <#${ticket.channelId}> is unclaimed for ${minutes}+ minutes!`,
+              content: `${pingRole ? `<@&${pingRole}> ` : ''}⏰ Ticket #${String(ticket.ticketNumber || 0).padStart(4, '0')} <#${ticket.channelId}> is unclaimed for ${minutes}+ minutes!`,
               allowedMentions: { roles: pingRole ? [pingRole] : [] },
             }).catch(() => {});
           }

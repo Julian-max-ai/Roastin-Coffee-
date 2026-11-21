@@ -29,6 +29,7 @@ const TicketSchema = new Schema({
   deleteAt:          { type: Date, default: null },
   ticketNumber:      { type: Number, default: null },
   baseName:          { type: String, default: null },
+  customName:        { type: String, default: null },
   pendingRename:     { type: Boolean, default: false },
   closeRequestMessageId: { type: String, default: null },
   notes:                { type: [{ text: String, authorId: String, createdAt: { type: Date, default: Date.now } }], default: [] },

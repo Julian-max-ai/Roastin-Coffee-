@@ -145,9 +145,17 @@ module.exports = {
     }
 
     if (sub === 'rename') {
-      const name = interaction.options.getString('name').toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 50);
-      await interaction.channel.setName(name).catch(() => {});
-      return interaction.editReply(successCard(`Channel renamed to **${name}**.`));
+      const name = interaction.options.getString('name');
+      const customName = name ? name.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 20) : null;
+      await Ticket.findByIdAndUpdate(ticket._id, { customName });
+      const type = await TicketType.findOne({ guildId, customId: ticket.typeId });
+      const { syncTicketChannel } = require('../utils/ticketNaming');
+      try {
+        await syncTicketChannel(interaction.channel, await Ticket.findById(ticket._id), type?.customId || 'ticket');
+      } catch (err) {
+        console.error('[ticket rename] channel rename failed:', err.message);
+      }
+      return interaction.editReply(successCard(`Ticket renamed. Channel name will be updated.`));
     }
 
     if (sub === 'priority') {
@@ -167,7 +175,7 @@ module.exports = {
         try {
           const welcomeMsg = await interaction.channel.messages.fetch(ticket.welcomeMessageId).catch(() => null);
           if (welcomeMsg) {
-            await welcomeMsg.edit(ticketWelcomeCard(type, { id: ticket.userId, username: interaction.client.users.cache.get(ticket.userId)?.username || 'user' }, ticket.claimedBy, level)).catch(() => {});
+            await welcomeMsg.edit(ticketWelcomeCard(type, { id: ticket.userId, username: interaction.client.users.cache.get(ticket.userId)?.username || 'user' }, ticket.claimedBy, level, ticket.ticketNumber)).catch(() => {});
           }
         } catch {}
       }
@@ -274,7 +282,16 @@ async function handleTicketOpen(interaction) {
     botOverwrite,
   ];
 
-  const channelName = `${type.customId}-${user.username.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20)}`;
+  // Assign ticket number first
+  const cfgForNum = await GuildConfig.findOneAndUpdate(
+    { guildId: guild.id },
+    { $inc: { ticketCounter: 1 } },
+    { upsert: true, new: true }
+  );
+  const ticketNumber = cfgForNum.ticketCounter;
+  const numStr = String(ticketNumber).padStart(4, '0');
+
+  const channelName = `${type.customId}-${numStr}`;
   let ticketChannel;
   try {
     ticketChannel = await guild.channels.create({
@@ -293,14 +310,7 @@ async function handleTicketOpen(interaction) {
   const pingText = [`<@${user.id}>`, ...staffRoles.map(r => `<@&${r}>`)].join(' ');
   try {
     await ticketChannel.send({ content: pingText, allowedMentions: { users: [user.id], roles: staffRoles } });
-    const welcomeMsg = await ticketChannel.send(ticketWelcomeCard(type, user));
-    // Assign ticket number
-    const cfgForNum = await GuildConfig.findOneAndUpdate(
-      { guildId: guild.id },
-      { $inc: { ticketCounter: 1 } },
-      { upsert: true, new: true }
-    );
-    const ticketNumber = cfgForNum.ticketCounter;
+    const welcomeMsg = await ticketChannel.send(ticketWelcomeCard(type, user, null, 'normal', ticketNumber));
 
     const ticketDoc = await Ticket.create({
       guildId: guild.id,
@@ -308,7 +318,7 @@ async function handleTicketOpen(interaction) {
       userId: user.id,
       typeId,
       ticketNumber,
-      baseName: `${typeId}-${user.username?.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8) || 'user'}`,
+      baseName: `${typeId}`,
       lastActivityAt: new Date(),
       welcomeMessageId: welcomeMsg.id,
     });
@@ -532,13 +542,13 @@ async function handleTicketClaim(interaction) {
   if (!type) return interaction.followUp(errorCard('Ticket type not found.'));
 
   // A1: Update welcome card + send feedback to channel
-  await interaction.editReply(ticketWelcomeCard(type, { id: ticket.userId }, interaction.user.id, ticket.priority));
+  await interaction.editReply(ticketWelcomeCard(type, { id: ticket.userId }, interaction.user.id, ticket.priority, ticket.ticketNumber));
 
   if (ticket.welcomeMessageId) {
     try {
       const welcomeMsg = await channel.messages.fetch(ticket.welcomeMessageId).catch(() => null);
       if (welcomeMsg) {
-        await welcomeMsg.edit(ticketWelcomeCard(type, { id: ticket.userId }, interaction.user.id, ticket.priority)).catch(() => {});
+        await welcomeMsg.edit(ticketWelcomeCard(type, { id: ticket.userId }, interaction.user.id, ticket.priority, ticket.ticketNumber)).catch(() => {});
       }
     } catch {}
   }
@@ -585,13 +595,13 @@ async function handleTicketRelease(interaction) {
   const type = await TicketType.findOne({ guildId: guild.id, customId: ticket.typeId });
   if (!type) return interaction.followUp(errorCard('Ticket type not found.'));
 
-  await interaction.editReply(ticketWelcomeCard(type, { id: ticket.userId }, null, ticket.priority));
+  await interaction.editReply(ticketWelcomeCard(type, { id: ticket.userId }, null, ticket.priority, ticket.ticketNumber));
 
   if (ticket.welcomeMessageId) {
     try {
       const welcomeMsg = await channel.messages.fetch(ticket.welcomeMessageId).catch(() => null);
       if (welcomeMsg) {
-        await welcomeMsg.edit(ticketWelcomeCard(type, { id: ticket.userId }, null, ticket.priority)).catch(() => {});
+        await welcomeMsg.edit(ticketWelcomeCard(type, { id: ticket.userId }, null, ticket.priority, ticket.ticketNumber)).catch(() => {});
       }
     } catch {}
   }
@@ -649,7 +659,7 @@ async function handleTicketRateFeedbackModal(interaction) {
       if (logCh) {
         await logCh.send(logCard(
           `${EMOJI.star} Ticket Rated`,
-          `Ticket \`${ticketId}\` rated **${'⭐'.repeat(stars)}** by <@${interaction.user.id}>${feedback ? `\n> ${feedback}` : ''}`
+          `Ticket #${String(ticket.ticketNumber || 0).padStart(4, '0')} rated **${'⭐'.repeat(stars)}** by <@${interaction.user.id}>${feedback ? `\n> ${feedback}` : ''}`
         )).catch(() => {});
       }
     }

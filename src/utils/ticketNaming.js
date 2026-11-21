@@ -1,26 +1,32 @@
 'use strict';
+
 const Ticket = require('../models/Ticket');
 
+function formatTicketNumber(n) {
+  return String(n || 0).padStart(4, '0');
+}
+
 function sanitize(str) {
-  return String(str || '').toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 12);
+  return String(str || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 20) || 'staff';
 }
 
 function buildTicketChannelName(ticket, typeKey) {
-  const baseName = ticket.baseName || `${typeKey}-${sanitize(ticket.userId?.slice(0, 6) || 'user')}`;
-  const claimed = ticket.claimedByName ? sanitize(ticket.claimedByName) : (ticket.claimedBy ? sanitize(ticket.claimedBy.slice(0, 8)) : null);
-  const priority = ticket.priority || 'normal';
+  const num = formatTicketNumber(ticket.ticketNumber);
+  const customName = ticket.customName || null;
+  const baseName = customName || typeKey || 'ticket';
 
-  let prefix = '';
-  if (priority === 'high') prefix = '⚠️';
-  else if (priority === 'urgent') prefix = '🔥';
-
-  let statusEmoji = '🔴';
-  if (ticket.closeRequestedAt) statusEmoji = '🟡';
-  else if (ticket.claimedBy) statusEmoji = '🟢';
-
-  let name = `${statusEmoji}┃${baseName}`;
-  if (claimed) name += `┃${claimed}`;
-  if (prefix) name = `${prefix}${name}`;
+  let name;
+  if (ticket.claimedBy && ticket.claimedByName) {
+    name = `${sanitize(ticket.claimedByName)}-${num}`;
+  } else {
+    name = `${sanitize(baseName)}-${num}`;
+  }
 
   return name.slice(0, 100).toLowerCase();
 }
@@ -43,4 +49,4 @@ async function syncTicketChannel(channel, ticket, typeKey) {
   }
 }
 
-module.exports = { buildTicketChannelName, syncTicketChannel, sanitize };
+module.exports = { formatTicketNumber, buildTicketChannelName, syncTicketChannel, sanitize };

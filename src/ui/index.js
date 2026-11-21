@@ -240,7 +240,7 @@ function infractionAppealCard(infraction, partner, appealReason, appealerId) {
 
 // ─── ticket cards ────────────────────────────────────────────────────────────
 
-function ticketWelcomeCard(type, user, claimedBy = null, priority = 'normal') {
+function ticketWelcomeCard(type, user, claimedBy = null, priority = 'normal', ticketNumber = null) {
   const { PRIORITY_COLOR, PRIORITY_EMOJI } = require('../theme');
   let desc = `${type.welcomeText}\n\n**Please answer the following:**\n`;
   type.questions.forEach((q, i) => { desc += `\n**${i + 1}.** ${q}`; });
@@ -258,7 +258,7 @@ function ticketWelcomeCard(type, user, claimedBy = null, priority = 'normal') {
     closeRequestBtn,
   );
   const parts = [
-    new TextDisplayBuilder().setContent(`## ${type.emoji} ${type.name}`),
+    new TextDisplayBuilder().setContent(`## ${type.emoji} ${type.name}${ticketNumber ? ` — #${String(ticketNumber).padStart(4, '0')}` : ''}`),
     sep(),
     new TextDisplayBuilder().setContent(desc),
     sep(false),
