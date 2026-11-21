@@ -141,14 +141,15 @@ function partnerListCards(partners, headerText) {
     );
     const sepBlock = sep(false);
 
-    if (count + 3 + 2 > 35) {
+    // Each partner = 5 components (TextDisplay + ActionRow + 2 Buttons + Separator)
+    if (count + 5 + 2 > 40) {
       parts.push(sep(), new TextDisplayBuilder().setContent(`-# ${EMOJI.coffee} ${BRAND.name} · ${BRAND.sub}`));
       messages.push(buildContainer(parts));
       parts = [];
       count = 0;
     }
     parts.push(textBlock, rowBlock, sepBlock);
-    count += 3;
+    count += 5;
   }
   parts.push(sep(), new TextDisplayBuilder().setContent(`-# ${EMOJI.coffee} ${BRAND.name} · ${BRAND.sub} · ${ts(new Date(), 'R')}`));
   messages.push(buildContainer(parts));

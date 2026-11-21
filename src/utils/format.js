@@ -25,12 +25,12 @@ function isUrl(str) {
 
 /** Validate Roblox group/community link */
 function isRobloxLink(str) {
-  return isUrl(str) && /roblox\.com\/(groups|communities)/.test(str);
+  return isUrl(str) && str.startsWith('https://') && /roblox\.com\/(groups|communities)/.test(str);
 }
 
 /** Validate Discord invite */
 function isDiscordInvite(str) {
-  return isUrl(str) && /(discord\.gg\/|discord\.com\/invite\/)/.test(str);
+  return isUrl(str) && str.startsWith('https://') && /(discord\.gg\/|discord\.com\/invite\/)/.test(str);
 }
 
 /** Strike progress bar: ▰▰▱ 2/3 */
