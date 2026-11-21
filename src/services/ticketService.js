@@ -1,6 +1,7 @@
 'use strict';
 const Ticket = require('../models/Ticket');
 const GuildConfig = require('../models/GuildConfig');
+const { getText } = require('../utils/texts');
 const { logCard, successCard, errorCard, ticketRatingCard } = require('../ui');
 const { EMOJI, COLORS, TICKET_CLOSE_DELAY_MS } = require('../theme');
 const { audit } = require('../utils/audit');
@@ -143,7 +144,7 @@ async function closeTicket(client, ticketId, { closedBy, reason, source }) {
   if (cfg?.automation?.transcriptDmToUser !== false && updated.userId && txtFile && htmlFile) {
     try {
       const opener = await client.users.fetch(updated.userId);
-      await opener.send(successCard('Your ticket has been closed. Here is your transcript.', false)).catch(() => {});
+      await opener.send(successCard(getText(cfg, 'ticket_transcript_dm', { user: `<@${updated.userId}>`, ticket: updated._id }), false)).catch(() => {});
       await opener.send({ content: '📎 Transcript files:', files: [txtFile, htmlFile] }).catch(() => {});
     } catch {}
   }
