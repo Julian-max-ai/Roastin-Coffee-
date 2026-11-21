@@ -46,4 +46,13 @@ client.once('ready', async () => {
   startScheduler(client);
   const { runCatchup } = require('./scheduler/catchup');
   await runCatchup(client).catch(err => console.error('[catchup]', err));
+
+  // Populate branding cache
+  try {
+    const GuildConfig = require('./models/GuildConfig');
+    const configs = await GuildConfig.find({ branding: { $ne: null } }).catch(() => []);
+    for (const cfg of configs) {
+      require('./utils/brandingCache').set(cfg.guildId, cfg.branding);
+    }
+  } catch {}
 });

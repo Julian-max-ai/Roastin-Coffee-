@@ -43,9 +43,7 @@ function payload(components, color = COLORS.primary, ephemeral = false) {
 // ─── generic cards ──────────────────────────────────────────────────────────
 
 function card({ title, description, color = COLORS.primary, fields = [], buttons = [], ephemeral = false, branding = null, guildId = null }) {
-  if (!branding && guildId) {
-    // sync lookup not possible; branding applied by caller
-  }
+  if (!branding && guildId) branding = brandingCache.get(guildId);
   if (branding?.color) color = branding.color;
   const parts = [
     new TextDisplayBuilder().setContent(`## ${title}`),

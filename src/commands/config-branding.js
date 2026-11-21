@@ -26,6 +26,7 @@ module.exports = {
     if (interaction.options.getString('color')) branding.color = interaction.options.getString('color');
 
     await GuildConfig.findOneAndUpdate({ guildId }, { branding }, { upsert: true });
+    require('../utils/brandingCache').set(guildId, branding);
     await require('../utils/audit').audit(guildId, interaction.user.id, 'config_branding', 'config', 'branding');
     await interaction.editReply(successCard('Branding updated.'));
   },
