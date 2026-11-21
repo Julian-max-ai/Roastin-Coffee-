@@ -214,6 +214,13 @@ async function handleSetupAction(interaction, stepId, action) {
     }
   }
 
+  if (stepId === 'welcome') {
+    if (action === 'recheck') {
+      await renderStep(interaction, stepId, true);
+      return;
+    }
+  }
+
   if (stepId === 'dweeb') {
     if (action === 'testTicket') {
       await interaction.followUp({ content: 'Use /ticket open to create a test ticket.', ephemeral: true }).catch(() => {});
