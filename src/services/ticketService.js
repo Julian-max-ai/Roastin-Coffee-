@@ -39,7 +39,9 @@ async function buildTranscript(channel, ticket, closedByTag, closeReason) {
   if (messages.length) {
     for (const msg of messages) {
       transcript += `[${msg.createdAt.toISOString()}] ${msg.author.tag}: ${msg.content || '[no text content]'}\n`;
+      if (msg.embeds.length) transcript += `  Embeds: ${msg.embeds.length}\n`;
       if (msg.attachments.size) transcript += `  Attachments: ${msg.attachments.map(a => a.url).join(', ')}\n`;
+      if (msg.reactions.cache.size) transcript += `  Reactions: ${msg.reactions.cache.map(r => r.emoji.name).join(', ')}\n`;
       const initials = msg.author.username.slice(0, 2).toUpperCase();
       const contentEscaped = msg.content ? escapeHtml(msg.content) : '<em>[no text]</em>';
       const authorEscaped = escapeHtml(msg.author.tag);
