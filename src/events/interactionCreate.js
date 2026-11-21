@@ -26,6 +26,22 @@ async function route(interaction, client) {
   if (interaction.isChatInputCommand()) {
     const cmd = client.commands.get(interaction.commandName);
     if (!cmd) return;
+
+    // Permission check (B1)
+    const ACCESS_MAP = {
+      setup: 'ADMIN', config: 'ADMIN', dweeb: 'ADMIN',
+      partner: 'STAFF', infraction: 'STAFF', review: 'STAFF',
+      ticket: 'STAFF', 'event-request': 'PUBLIC',
+      stats: 'STAFF', audit: 'STAFF', doctor: 'STAFF',
+    };
+    const access = ACCESS_MAP[interaction.commandName] || 'PUBLIC';
+    if (access !== 'PUBLIC') {
+      const cfg = await (require('../models/GuildConfig')).findOne({ guildId: interaction.guildId }).catch(() => null);
+      const { requireLevel } = require('../utils/permissions');
+      const ok = await requireLevel(interaction, access, client);
+      if (!ok) return;
+    }
+
     await cmd.execute(interaction);
     return;
   }
