@@ -29,13 +29,13 @@ async function anniversariesJob(client, setLastRun) {
           if (added.getMonth() !== month || added.getDate() !== day) continue;
           if (partner.anniversaryNotifiedYear === currentYear) continue;
 
-          await announceChannel.send(card({
+          await announceChannel.send({ ...card({
             title: `${EMOJI.anniversary} Partner Anniversary`,
             description: `Happy anniversary to **${partner.name}**! 🎉 Thank you for partnering with Roastin' Coffee.\nPing: <@${partner.representativeId}>`,
             color: COLORS.success,
             buttons: [],
             ephemeral: false,
-          }), { allowedMentions: { users: [partner.representativeId] } }).catch(() => {});
+          }), allowedMentions: { users: [partner.representativeId] } }).catch(() => {});
 
           await Partner.findByIdAndUpdate(partner._id, { anniversaryNotifiedYear: currentYear });
         } catch (err) {

@@ -631,13 +631,13 @@ async function handleTicketClaim(interaction) {
   }
 
   try {
-    await channel.send(card({
+    await channel.send({ ...card({
       title: `${EMOJI.claim} Ticket Claimed`,
       description: `🙋 <@${interaction.user.id}> has claimed this ticket and will assist you shortly.\nPing: <@${ticket.userId}>`,
       color: COLORS.primary,
       buttons: [],
       ephemeral: false,
-    }), { allowedMentions: { users: [ticket.userId] } }).catch(() => {});
+    }), allowedMentions: { users: [ticket.userId] } }).catch(() => {});
   } catch {}
 
   await audit(guild.id, interaction.user.id, 'ticket_claim', 'ticket', ticket._id.toString());
@@ -680,13 +680,13 @@ async function handleTicketRelease(interaction) {
   }
 
   try {
-    await channel.send(card({
+    await channel.send({ ...card({
       title: `${EMOJI.release} Ticket Unassigned`,
       description: `This ticket is unassigned again. A staff member will pick it up shortly.\nPing: <@${ticket.userId}>`,
       color: COLORS.primary,
       buttons: [],
       ephemeral: false,
-    }), { allowedMentions: { users: [ticket.userId] } }).catch(() => {});
+    }), allowedMentions: { users: [ticket.userId] } }).catch(() => {});
   } catch {}
 
   await audit(guild.id, interaction.user.id, 'ticket_release', 'ticket', ticket._id.toString());

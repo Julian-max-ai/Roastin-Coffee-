@@ -50,7 +50,7 @@ async function reviewRemindersJob(client, setLastRun) {
             }
           } else if (channel && daysSinceAdd >= reminderDays) {
             // Reminder
-            await channel.send(card({
+            await channel.send({ ...card({
               title: `${EMOJI.reminder} Review Reminder`,
               description: `**${partner.name}**, please complete your monthly review for ${month}.` +
                 (cfg.reviewMode === 'link' && cfg.reviewLink
@@ -59,7 +59,7 @@ async function reviewRemindersJob(client, setLastRun) {
               color: COLORS.warning,
               buttons: [],
               ephemeral: false,
-            }), { allowedMentions: { users: [partner.representativeId] } }).catch(() => {});
+            }), allowedMentions: { users: [partner.representativeId] } }).catch(() => {});
           }
         } catch (err) {
           console.error('[scheduler] reviewReminder partner error:', err.message);

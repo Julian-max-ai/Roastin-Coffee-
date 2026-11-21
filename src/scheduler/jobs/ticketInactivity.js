@@ -31,14 +31,14 @@ async function ticketInactivityJob(client, setLastRun) {
           if (!channel) continue;
 
           const creator = await client.users.fetch(ticket.userId).catch(() => null);
-          await channel.send(card({
+          await channel.send({ ...card({
             title: `${EMOJI.reminder} Ticket Inactivity Reminder`,
             description: `This ticket has been inactive for ${hours} hours. It will be auto-closed after ${cfg.automation.ticketAutoCloseHours ?? 48} hours of inactivity.` +
               (creator ? `\nPing: <@${ticket.userId}>` : ''),
             color: COLORS.warning,
             buttons: [],
             ephemeral: false,
-          }), { allowedMentions: { users: ticket.userId ? [ticket.userId] : [] } }).catch(() => {});
+          }), allowedMentions: { users: ticket.userId ? [ticket.userId] : [] } }).catch(() => {});
 
           await Ticket.findByIdAndUpdate(ticket._id, { reminderSentAt: new Date() });
         } catch (err) {
