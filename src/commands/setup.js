@@ -8,17 +8,17 @@ module.exports = {
     .setName('setup')
     .setDescription('Guided bot setup.')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-    .addSubcommand(s => s.setName('start').setDescription('Startet oder setzt den Setup-Assistenten fort.'))
-    .addSubcommand(s => s.setName('status').setDescription('Zeigt den Setup-Fortschritt.'))
+    .addSubcommand(s => s.setName('start').setDescription('Start or continue the setup wizard.'))
+    .addSubcommand(s => s.setName('status').setDescription('Show setup progress.'))
     .addSubcommand(s => s.setName('help').setDescription('Explanations for a topic.')
-      .addStringOption(o => o.setName('topic').setDescription('Thema').setRequired(true)
+      .addStringOption(o => o.setName('topic').setDescription('Topic').setRequired(true)
         .addChoices(
-          { name: 'Rechte', value: 'rights' },
+          { name: 'Rights', value: 'rights' },
           { name: 'Channels', value: 'channels' },
           { name: 'Tickets', value: 'tickets' },
           { name: 'Partner', value: 'partners' },
           { name: 'Reviews', value: 'reviews' },
-          { name: 'Infraktionen', value: 'infractions' },
+          { name: 'Infractions', value: 'infractions' },
           { name: 'Events', value: 'events' },
           { name: 'Automation', value: 'automation' },
           { name: 'Dweeb', value: 'dweeb' },

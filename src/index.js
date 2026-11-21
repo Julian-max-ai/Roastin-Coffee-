@@ -9,7 +9,9 @@ const fs   = require('fs');
 const path = require('path');
 const cron = require('node-cron');
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] }); // TODO: enable MessageContent in Developer Portal
+const intents = [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages];
+if (process.env.ENABLE_MESSAGE_CONTENT === 'true') intents.push(GatewayIntentBits.MessageContent);
+const client = new Client({ intents });
 client.commands = new Collection();
 
 // Load commands

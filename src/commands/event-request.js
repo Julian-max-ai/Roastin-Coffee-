@@ -115,7 +115,7 @@ async function handleEventDenyModal(interaction) {
 
   const cfg = await GuildConfig.findOne({ guildId });
   if (!require('../utils/permissions').isStaff(member, cfg)) {
-    return interaction.reply({ content: 'Keine Berechtigung.', ephemeral: true });
+    return interaction.reply({ content: 'No permission.', ephemeral: true });
   }
 
   const req = await EventRequest.findOne({ _id: reqId, guildId });
