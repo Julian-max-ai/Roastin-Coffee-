@@ -10,6 +10,7 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addSubcommand(s => s.setName('start').setDescription('Startet oder setzt den Setup-Assistenten fort.'))
     .addSubcommand(s => s.setName('status').setDescription('Zeigt den Setup-Fortschritt.'))
+    .addSubcommand(s => s.setName('test').setDescription('Run setup validation tests.'))
     .addSubcommand(s => s.setName('help').setDescription('Explanations for a topic.')
       .addStringOption(o => o.setName('topic').setDescription('Thema').setRequired(true)
         .addChoices(
@@ -39,6 +40,22 @@ module.exports = {
       }
       desc += '\nUse `/setup help topic:<name>` for detailed explanations.\nMark steps complete via /config.';
       await interaction.editReply(infoCard('Setup', desc, true));
+    }
+
+    if (sub === 'test') {
+      const checks = [];
+      if (cfg?.announcementChannel) checks.push('✅ Announcement channel set');
+      else checks.push('❌ Announcement channel missing');
+      if (cfg?.reviewChannel) checks.push('✅ Review channel set');
+      else checks.push('❌ Review channel missing');
+      if (cfg?.logChannel) checks.push('✅ Log channel set');
+      else checks.push('❌ Log channel missing');
+      if (cfg?.ticketCategory) checks.push('✅ Ticket category set');
+      else checks.push('❌ Ticket category missing');
+      if (cfg?.prStaffRoles?.length) checks.push('✅ PR staff roles set');
+      else checks.push('❌ PR staff roles missing');
+      await interaction.editReply(successCard(checks.join('\n')));
+      return;
     }
 
     if (sub === 'help') {
