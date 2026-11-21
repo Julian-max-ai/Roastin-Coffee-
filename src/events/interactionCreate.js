@@ -46,6 +46,9 @@ async function route(interaction, client) {
     if (id.startsWith('ticket_edit:')) {
       return require('../commands/ticket-panel').handleTicketEditModal(interaction);
     }
+    if (id.startsWith('ticket_staff_close:')) {
+      return require('../commands/ticket-panel').handleTicketStaffClose(interaction);
+    }
     if (id.startsWith('review_submit:')) {
       return require('../commands/review').handleReviewSubmit(interaction);
     }

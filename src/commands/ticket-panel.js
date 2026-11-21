@@ -401,11 +401,21 @@ async function handleTicketClose(interaction) {
     return interaction.editReply(errorCard('Only the ticket creator or staff can close this ticket.'));
   }
 
-  // A2: Confirmation card first
-  const confirmRow = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`ticket_confirm_close:${channel.id}`).setLabel('Yes, close').setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId('ticket_cancel_close').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
-  );
+  // Staff close → modal with reason/category/duration
+  if (isStaff(member, cfg)) {
+    const modal = new ModalBuilder().setCustomId(`ticket_staff_close:${channel.id}`).setTitle('Close Ticket');
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder().setCustomId('reason').setLabel('Reason').setStyle(TextInputStyle.Paragraph).setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder().setCustomId('category').setLabel('Category (optional)').setStyle(TextInputStyle.Short).setRequired(false)
+      ),
+    );
+    return interaction.showModal(modal);
+  }
+
+  // A2: Confirmation card first (for non-staff)
   return interaction.editReply(card({
     title: `${EMOJI.close} Confirm Ticket Close`,
     description: `Are you sure you want to close this ticket? The channel will be deleted shortly and a transcript will be sent to the log channel and ticket creator.`,
@@ -416,6 +426,29 @@ async function handleTicketClose(interaction) {
     ],
     ephemeral: true,
   }));
+}
+
+
+async function handleTicketStaffClose(interaction) {
+  const channelId = interaction.customId.replace('ticket_staff_close:', '');
+  const reason = interaction.fields.getTextInputValue('reason');
+  const category = interaction.fields.getTextInputValue('category') || null;
+  const { guild, channel, member } = interaction;
+  const cfg = await GuildConfig.findOne({ guildId: guild.id });
+
+  const ticket = await Ticket.findOne({ guildId: guild.id, channelId, status: 'open' });
+  if (!ticket) return interaction.reply(errorCard('Ticket not found or already closed.'));
+
+  await interaction.deferReply({ ephemeral: true });
+  const result = await require('../services/ticketService').closeTicket(interaction.client, ticket._id.toString(), {
+    closedBy: interaction.user.id,
+    reason,
+    source: 'staff_modal',
+    category,
+  });
+
+  if (!result) return interaction.editReply(errorCard('Ticket already being closed.'));
+  await interaction.editReply(successCard(`Ticket closed. Reason: ${reason}`));
 }
 
 async function handleTicketConfirmClose(interaction) {
@@ -628,6 +661,7 @@ async function handleTicketRateFeedbackModal(interaction) {
 }
 
 module.exports.handleTicketClose            = handleTicketClose;
+module.exports.handleTicketStaffClose        = handleTicketStaffClose;
 module.exports.handleTicketCloseRequest      = handleTicketCloseRequest;
 module.exports.handleTicketConfirmClose     = handleTicketConfirmClose;
 module.exports.handleTicketCancelClose      = handleTicketCancelClose;
@@ -640,6 +674,7 @@ module.exports.handleTicketRateFeedbackModal = handleTicketRateFeedbackModal;
 module.exports.handleTicketEditModal        = handleTicketEditModal;
 module.exports.handleTicketOpen             = handleTicketOpen;
 module.exports.handleTicketClose            = handleTicketClose;
+module.exports.handleTicketStaffClose        = handleTicketStaffClose;
 module.exports.handleTicketConfirmClose     = handleTicketConfirmClose;
 module.exports.handleTicketCancelClose      = handleTicketCancelClose;
 module.exports.handleTicketKeepOpen         = handleTicketKeepOpen;
