@@ -1,29 +1,27 @@
 'use strict';
 const Ticket = require('../../models/Ticket');
-const { audit } = require('../../utils/audit');
-
-const SLEEP = 500;
-
-async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+const GuildConfig = require('../../models/GuildConfig');
 
 async function closedTicketCleanupJob(client, setLastRun) {
-  const configs = await require('../../models/GuildConfig').find().catch(() => []);
+  const configs = await GuildConfig.find().catch(() => []);
+  const now = new Date();
+
   for (const cfg of configs) {
     try {
       setLastRun('closedTicketCleanup', cfg.guildId);
-      const tickets = await Ticket.find({ guildId: cfg.guildId, status: 'closed' }).catch(() => []);
+      const tickets = await Ticket.find({
+        guildId: cfg.guildId, status: 'closed',
+        deleteAt: { $lte: now, $ne: null },
+      }).catch(() => []);
 
       for (const ticket of tickets) {
         try {
           const channel = await client.channels.fetch(ticket.channelId).catch(() => null);
-          if (channel) {
-            // Channel still exists — delete it
-            await channel.delete().catch(() => {});
-          }
+          if (channel) await channel.delete().catch(() => {});
+          await Ticket.findByIdAndUpdate(ticket._id, { deleteAt: null, channelDeletedAt: new Date() });
         } catch (err) {
           console.error('[scheduler] closedTicketCleanup error:', err.message);
         }
-        await sleep(SLEEP);
       }
     } catch (err) {
       console.error('[scheduler] closedTicketCleanup guild error:', err.message);

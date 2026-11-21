@@ -2,6 +2,7 @@
 const cron = require('node-cron');
 const { ticketInactivityJob } = require('./jobs/ticketInactivity');
 const { ticketCloseRequestJob } = require('./jobs/ticketCloseRequest');
+const { ticketAutoCloseJob } = require('./jobs/ticketAutoClose');
 const { closedTicketCleanupJob } = require('./jobs/closedTicketCleanup');
 const { infractionExpiryJob } = require('./jobs/infractionExpiry');
 const { reviewRemindersJob } = require('./jobs/reviewReminders');
@@ -33,6 +34,11 @@ function startScheduler(client) {
   // Ticket close-request auto-close — every 15 minutes
   cron.schedule('*/15 * * * *', async () => {
     await ticketCloseRequestJob(client, setLastRun);
+  });
+
+  // Ticket auto-close (inactivity) — every 15 minutes
+  cron.schedule('*/15 * * * *', async () => {
+    await ticketAutoCloseJob(client, setLastRun);
   });
 
   // Closed ticket channel cleanup — every 15 minutes

@@ -29,6 +29,7 @@ const TicketSchema = new Schema({
   baseName:          { type: String, default: null },
   pendingRename:     { type: Boolean, default: false },
   closeRequestMessageId: { type: String, default: null },
+  channelDeletedAt:     { type: Date, default: null },
 });
 
 TicketSchema.index({ guildId: 1, channelId: 1 });
