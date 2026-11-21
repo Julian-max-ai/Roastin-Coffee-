@@ -25,7 +25,12 @@ module.exports = {
       .addStringOption(o => o.setName('roblox').setDescription('New Roblox group link'))
       .addStringOption(o => o.setName('discord').setDescription('New Discord invite link'))
       .addUserOption(o => o.setName('representative').setDescription('New representative')))
-    .addSubcommand(s => s.setName('list').setDescription('List all current partners.')),
+    .addSubcommand(s => s.setName('list').setDescription('List all current partners.'))
+    .addSubcommand(s => s.setName('info').setDescription('Show partner details.')
+      .addStringOption(o => o.setName('name').setDescription('Partner name').setRequired(true).setAutocomplete(true)))
+    .addSubcommand(s => s.setName('note').setDescription('Add a note to a partner.')
+      .addStringOption(o => o.setName('name').setDescription('Partner name').setRequired(true).setAutocomplete(true))
+      .addStringOption(o => o.setName('text').setDescription('Note text').setRequired(true))),
 
   async autocomplete(interaction) {
     const partners = await Partner.find({ guildId: interaction.guildId });
@@ -108,6 +113,24 @@ module.exports = {
       const res = infoCard(`${EMOJI.partner} Partner List`, desc, true);
       if (row) res.components = [...res.components, row];
       await interaction.editReply(res);
+    }
+
+    if (sub === 'info') {
+      const name = interaction.options.getString('name');
+      const partner = await Partner.findOne({ guildId, name });
+      if (!partner) return interaction.editReply(errorCard(`No partner named **${name}** found.`));
+      await interaction.editReply(partnerInfoCard(partner));
+    }
+
+    if (sub === 'note') {
+      const name = interaction.options.getString('name');
+      const text = interaction.options.getString('text');
+      const partner = await Partner.findOne({ guildId, name });
+      if (!partner) return interaction.editReply(errorCard(`No partner named **${name}** found.`));
+      partner.notes = partner.notes || [];
+      partner.notes.push({ text, by: interaction.user.id, date: new Date() });
+      await partner.save();
+      await interaction.editReply(successCard(`Note added to **${name}**.`));
     }
   },
 };
