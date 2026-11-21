@@ -18,6 +18,7 @@ const TicketSchema = new Schema({
   ratingFeedback:    { type: String, default: null },
   reminderSentAt:    { type: Date, default: null },
   autoCloseSentAt:   { type: Date, default: null },
+  unclaimedAlertSentAt: { type: Date, default: null },
   ratingSentAt:      { type: Date, default: null },
   welcomeMessageId:  { type: String, default: null },
   closeRequestedAt:  { type: Date, default: null },

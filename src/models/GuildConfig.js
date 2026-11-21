@@ -45,6 +45,8 @@ const GuildConfigSchema = new Schema({
     inviteHealthCheck:        { type: Boolean, default: true },
     autoAssignRepRoles:       { type: Boolean, default: true },
     weeklyEventDigest:        { type: Boolean, default: false },
+    unclaimedAlertMinutes:    { type: Number, default: 30 },
+    unclaimedAlertRole:       { type: String, default: null },
   },
 });
 

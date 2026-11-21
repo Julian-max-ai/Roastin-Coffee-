@@ -10,6 +10,7 @@ const { eventRemindersJob } = require('./jobs/eventReminders');
 const { anniversariesJob } = require('./jobs/anniversaries');
 const { inviteHealthJob } = require('./jobs/inviteHealth');
 const { weeklyEventDigestJob } = require('./jobs/weeklyEventDigest');
+const { unclaimedSLAJob } = require('./jobs/unclaimedSLA');
 const { sendMonthlyReviews } = require('../commands/review');
 
 // In-memory last-run timestamps per job per guild (for /doctor)
@@ -74,6 +75,11 @@ function startScheduler(client) {
   // Weekly event digest — Monday 09:00 UTC
   cron.schedule('0 9 * * 1', async () => {
     await weeklyEventDigestJob(client, setLastRun);
+  });
+
+  // Unclaimed SLA check — every 5 minutes
+  cron.schedule('*/5 * * * *', async () => {
+    await unclaimedSLAJob(client, setLastRun);
   });
 
   // Monthly review cron (existing)

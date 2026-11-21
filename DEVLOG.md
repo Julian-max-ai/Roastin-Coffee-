@@ -1,4 +1,4 @@
-# Roastin Coffee PR Bot — Development Log
+o# Roastin Coffee PR Bot — Development Log
 
 ## System Overview
 Discord PR Bot for Roastin Coffee Roblox Café Group.
