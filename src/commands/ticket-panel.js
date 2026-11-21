@@ -56,7 +56,6 @@ module.exports = {
           { name: '🤝 Partnership Request', value: 'partnership' },
           { name: '📋 PR Report', value: 'report' },
         )))
-    .addSubcommand(s => s.setName('info').setDescription('View current ticket type configuration (admin only).'))
     .addSubcommand(s => s.setName('add').setDescription('Add a user to this ticket (staff only).')
       .addUserOption(o => o.setName('user').setDescription('User to add').setRequired(true)))
     .addSubcommand(s => s.setName('remove').setDescription('Remove a user from this ticket (staff only).')
@@ -96,20 +95,6 @@ module.exports = {
       ));
     }
 
-    if (sub === 'info') {
-      if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
-        return interaction.reply(errorCard('Only administrators can run `/ticket info`.'));
-      }
-      const types = await TicketType.find({ guildId });
-      if (!types.length) return interaction.reply(errorCard('No ticket types found. Run `/ticket setup` first.'));
-      let desc = '';
-      for (const t of types) {
-        desc += `**${t.emoji} ${t.name}** (\`ticket_open:${t.customId}\`)\n`;
-        desc += `> ${t.welcomeText}\n`;
-        desc += `> **Questions:** ${t.questions.length} · **Staff Roles:** ${t.staffRoles.length ? t.staffRoles.map(r => `<@&${r}>`).join(', ') : '*None*'}\n\n`;
-      }
-      return interaction.reply(infoCard(`${EMOJI.ticket} Ticket Types`, desc, true));
-    }
 
     if (sub === 'edit') {
       if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
