@@ -9,9 +9,11 @@ const { ts, cap, strikeBar, truncate } = require('../utils/format');
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-function footer() {
+function footer(branding = null) {
+  const name = branding?.name || BRAND.name;
+  const sub = branding?.sub || BRAND.sub;
   return new TextDisplayBuilder().setContent(
-    `-# ${EMOJI.coffee} ${BRAND.name} · ${BRAND.sub} · ${ts(new Date(), 'R')}`
+    `-# ${EMOJI.coffee} ${name} · ${sub} · ${ts(new Date(), 'R')}`
   );
 }
 
@@ -40,7 +42,8 @@ function payload(components, color = COLORS.primary, ephemeral = false) {
 
 // ─── generic cards ──────────────────────────────────────────────────────────
 
-function card({ title, description, color = COLORS.primary, fields = [], buttons = [], ephemeral = false }) {
+function card({ title, description, color = COLORS.primary, fields = [], buttons = [], ephemeral = false, branding = null }) {
+  if (branding?.color) color = branding.color;
   const parts = [
     new TextDisplayBuilder().setContent(`## ${title}`),
     sep(),
@@ -54,7 +57,7 @@ function card({ title, description, color = COLORS.primary, fields = [], buttons
     for (const b of buttons) row.addComponents(b);
     parts.push(sep(false), row);
   }
-  parts.push(sep(), footer());
+  parts.push(sep(), footer(branding));
   return payload(parts, color, ephemeral);
 }
 
