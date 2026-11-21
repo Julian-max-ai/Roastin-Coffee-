@@ -1,4 +1,5 @@
 'use strict';
+const Ticket = require('../models/Ticket');
 
 function sanitize(str) {
   return String(str || '').toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 12);
@@ -6,7 +7,7 @@ function sanitize(str) {
 
 function buildTicketChannelName(ticket, typeKey) {
   const baseName = ticket.baseName || `${typeKey}-${sanitize(ticket.userId?.slice(0, 6) || 'user')}`;
-  const claimed = ticket.claimedBy ? sanitize(ticket.claimedBy.slice(0, 8)) : null;
+  const claimed = ticket.claimedByName ? sanitize(ticket.claimedByName) : (ticket.claimedBy ? sanitize(ticket.claimedBy.slice(0, 8)) : null);
   const priority = ticket.priority || 'normal';
 
   let prefix = '';

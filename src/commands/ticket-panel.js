@@ -512,9 +512,11 @@ async function handleTicketClaim(interaction) {
   }
 
   // A1: Prevent double-claim — claimedBy must be null
+  const fetchedMember = await guild.members.fetch(interaction.user.id).catch(() => null);
+  const claimedByName = fetchedMember?.displayName || interaction.user.username;
   const ticket = await Ticket.findOneAndUpdate(
     { guildId: guild.id, channelId: channel.id, status: 'open', claimedBy: null },
-    { claimedBy: interaction.user.id },
+    { claimedBy: interaction.user.id, claimedByName },
     { new: true }
   );
   if (!ticket) {
@@ -551,6 +553,10 @@ async function handleTicketClaim(interaction) {
   } catch {}
 
   await audit(guild.id, interaction.user.id, 'ticket_claim', 'ticket', ticket._id.toString());
+
+  // Sync channel name
+  const { syncTicketChannel } = require('../utils/ticketNaming');
+  await syncTicketChannel(channel, ticket, type?.customId || 'ticket').catch(() => {});
 }
 
 async function handleTicketRelease(interaction) {
@@ -600,6 +606,11 @@ async function handleTicketRelease(interaction) {
   } catch {}
 
   await audit(guild.id, interaction.user.id, 'ticket_release', 'ticket', ticket._id.toString());
+
+  // Sync channel name
+  const type2 = await TicketType.findOne({ guildId: guild.id, customId: ticket.typeId });
+  const { syncTicketChannel } = require('../utils/ticketNaming');
+  await syncTicketChannel(channel, ticket, type2?.customId || 'ticket').catch(() => {});
 }
 
 async function handleTicketRate(interaction) {

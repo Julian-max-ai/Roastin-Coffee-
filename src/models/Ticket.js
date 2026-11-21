@@ -6,6 +6,7 @@ const TicketSchema = new Schema({
   userId:            { type: String, required: true },
   typeId:            { type: String, required: true },
   claimedBy:         { type: String, default: null },
+  claimedByName:     { type: String, default: null },
   status:            { type: String, enum: ['open', 'closing', 'closed'], default: 'open' },
   priority:          { type: String, enum: ['low', 'normal', 'high', 'urgent'], default: 'normal' },
   openedAt:          { type: Date, default: Date.now },
