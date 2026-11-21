@@ -50,7 +50,7 @@ module.exports = {
       if (ticket.closeRequestMessageId) {
         try {
           const msg = await message.channel.messages.fetch(ticket.closeRequestMessageId).catch(() => null);
-          if (msg) await msg.edit({ content: '↩️ Close request withdrawn due to new activity.' }).catch(() => {});
+          if (msg) await msg.edit(require('../ui').card({ title: '↩️ Close Request Withdrawn', description: 'Close request withdrawn due to new activity.', color: require('../theme').COLORS.warning, buttons: [], ephemeral: false })).catch(() => {});
         } catch {}
       }
     }

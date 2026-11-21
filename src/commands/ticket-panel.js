@@ -470,8 +470,9 @@ async function handleTicketKeepOpen(interaction) {
   const ticketId = interaction.customId.split(':')[1];
   const ticket = await Ticket.findById(ticketId);
   if (!ticket) return interaction.update(errorCard('Ticket not found.'));
-  if (interaction.user.id !== ticket.userId) {
-    return interaction.update(errorCard('Only the ticket creator can keep this ticket open.'));
+  const cfg = await GuildConfig.findOne({ guildId: ticket.guildId });
+  if (interaction.user.id !== ticket.userId && !isStaff(interaction.member, cfg)) {
+    return interaction.reply({ ...errorCard('Only the ticket creator or staff can keep this ticket open.'), ephemeral: true });
   }
   await Ticket.findByIdAndUpdate(ticketId, {
     closeRequestedAt: null,
@@ -489,7 +490,7 @@ async function handleTicketAgreeClose(interaction) {
   if (!ticket) return interaction.update(errorCard('Ticket not found.'));
   const cfg = await GuildConfig.findOne({ guildId: ticket.guildId });
   if (interaction.user.id !== ticket.userId && !isStaff(interaction.member, cfg)) {
-    return interaction.update(errorCard('Only the ticket creator or staff can agree to close.'));
+    return interaction.reply({ ...errorCard('Only the ticket creator or staff can agree to close.'), ephemeral: true });
   }
 
   await interaction.deferUpdate();
