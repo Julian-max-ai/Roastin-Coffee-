@@ -10,6 +10,8 @@ const GuildConfigSchema = new Schema({
   ticketCounter:        { type: Number, default: 0 },
   prStaffRoles:         { type: [String], default: [] },
   adminRoles:           { type: [String], default: [] },
+  dashboardMessageId:   { type: String, default: null },
+  dashboardChannelId:   { type: String, default: null },
   partnerRepRoles:      { type: [String], default: [] },
   ticketBlacklist:      { type: [{ userId: String, reason: String, addedBy: String, addedAt: Date }], default: [] },
   partnerListText:      { type: String, default: `## 🤝 Our Partners\n\n` },

@@ -10,7 +10,8 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('dashboard')
     .setDescription('Staff dashboard (open tickets, reviews, strikes).')
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .addBooleanOption(o => o.setName('pin').setDescription('Pin and auto-update this dashboard.')),
   async execute(interaction) {
     await interaction.deferReply({ ephemeral: true });
     const { guildId } = interaction;
@@ -30,6 +31,14 @@ module.exports = {
       `📋 Pending Reviews: ${pendingReviews}\n` +
       `⏱️ Uptime: ${Math.floor(process.uptime() / 60)} min`;
 
-    await interaction.editReply(successCard(desc));
+    const pin = interaction.options.getBoolean('pin');
+    if (pin) {
+      const msg = await interaction.editReply(successCard(desc));
+      await msg.pin().catch(() => {});
+      const GuildConfig = require('../models/GuildConfig');
+      await GuildConfig.findOneAndUpdate({ guildId }, { dashboardMessageId: msg.id, dashboardChannelId: interaction.channelId }, { upsert: true });
+    } else {
+      await interaction.editReply(successCard(desc));
+    }
   },
 };
