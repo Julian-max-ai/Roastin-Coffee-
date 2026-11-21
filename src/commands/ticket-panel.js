@@ -9,6 +9,7 @@ const TicketType   = require('../models/TicketType');
 const Ticket       = require('../models/Ticket');
 const { ticketWelcomeCard, ticketRatingCard, errorCard, successCard, logCard, infoCard, card, warningCard } = require('../ui');
 const { isStaff } = require('../utils/permissions');
+const { getText } = require('../utils/texts');
 const { EMOJI, TICKET_CLOSE_DELAY_MS, PRIORITY_EMOJI, PRIORITY_COLOR, COLORS } = require('../theme');
 const { audit } = require('../utils/audit');
 const { ts } = require('../utils/format');
@@ -557,7 +558,7 @@ async function handleTicketClaim(interaction) {
   try {
     await channel.send({ ...card({
       title: `${EMOJI.claim} Ticket Claimed`,
-      description: `🙋 <@${interaction.user.id}> has claimed this ticket and will assist you shortly.\nPing: <@${ticket.userId}>`,
+      description: getText(cfg, 'ticket_claim', { staff: `<@${interaction.user.id}>`, user: `<@${ticket.userId}>`, ticket: ticket._id }) + `\nPing: <@${ticket.userId}>`,
       color: COLORS.primary,
       buttons: [],
       ephemeral: false,
