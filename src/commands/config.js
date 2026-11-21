@@ -20,6 +20,7 @@ function mainMenu() {
         { label: '📋 Review System', value: 'review', description: 'Review mode, link and questions' },
         { label: '✏️ Custom Texts', value: 'texts', description: 'Partner list, ticket panel and review texts' },
         { label: '⚙️ Automation', value: 'automation', description: 'Ticket, infraction, review and event automation' },
+        { label: '🔐 Rights', value: 'rights', description: 'Admin, PR staff and partner rep roles' },
       ])
   );
 }
@@ -117,6 +118,24 @@ async function handleConfigInteraction(interaction) {
             { label: '🎫 Ticket Panel Text', value: 'ticketPanelText' },
             { label: '📋 Review Message Text', value: 'reviewText' },
           ])
+        ),
+        new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('cfg_back').setLabel('← Back').setStyle(ButtonStyle.Secondary)
+        ),
+      ]));
+    }
+
+    if (cat === 'rights') {
+      const cfg = await GuildConfig.findOne({ guildId });
+      return interaction.editReply(configPanel(cfg, [
+        new ActionRowBuilder().addComponents(
+          new RoleSelectMenuBuilder().setCustomId('cfg_adminRoles').setPlaceholder('🔐 Admin Roles').setMinValues(0).setMaxValues(5)
+        ),
+        new ActionRowBuilder().addComponents(
+          new RoleSelectMenuBuilder().setCustomId('cfg_prStaffRoles').setPlaceholder('👔 PR Staff Roles').setMinValues(0).setMaxValues(5)
+        ),
+        new ActionRowBuilder().addComponents(
+          new RoleSelectMenuBuilder().setCustomId('cfg_partnerRepRoles').setPlaceholder('🤝 Partner Rep Roles').setMinValues(0).setMaxValues(5)
         ),
         new ActionRowBuilder().addComponents(
           new ButtonBuilder().setCustomId('cfg_back').setLabel('← Back').setStyle(ButtonStyle.Secondary)
@@ -278,8 +297,9 @@ async function handleConfigInteraction(interaction) {
 
   if (interaction.isRoleSelectMenu()) {
     const key = interaction.customId;
-    if (!['cfg_prStaffRoles', 'cfg_partnerRepRoles'].includes(key)) return;
-    await GuildConfig.findOneAndUpdate({ guildId }, { [key.replace('cfg_', '')]: interaction.values }, { upsert: true });
+    if (!['cfg_adminRoles', 'cfg_prStaffRoles', 'cfg_partnerRepRoles'].includes(key)) return;
+    const field = key === 'cfg_adminRoles' ? 'adminRoles' : key.replace('cfg_', '');
+    await GuildConfig.findOneAndUpdate({ guildId }, { [field]: interaction.values }, { upsert: true });
     const cfg = await GuildConfig.findOne({ guildId });
     return interaction.editReply(configPanel(cfg, [mainMenu()]));
   }
