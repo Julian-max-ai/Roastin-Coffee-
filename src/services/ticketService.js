@@ -99,8 +99,27 @@ async function closeTicket(client, ticketId, { closedBy, reason, source }) {
     } catch {}
   }
 
+  // Send summary card to transcript channel (fallback logChannel)
+  const transcriptChId = cfg?.transcriptChannel || cfg?.logChannel;
+  if (transcriptChId) {
+    const tCh = await client.channels.fetch(transcriptChId).catch(() => null);
+    if (tCh) {
+      const summaryCard = (require('../ui')).card({
+        title: `${require('../theme').EMOJI.ticket} Ticket Closed — #${updated.ticketNumber || '?'}`,
+        description: `**Type:** ${updated.typeId}\n**Opener:** <@${updated.userId}>\n**Claimer:** ${updated.claimedBy ? `<@${updated.claimedBy}>` : 'Never claimed'}\n**Closed by:** <@${closedBy}>\n**Reason:** ${reason || 'None'}\n**Source:** ${source}\n**Messages:** ${txtFile ? 'Transcript attached' : 'N/A'}`,
+        color: require('../theme').COLORS.dark,
+        buttons: [],
+        ephemeral: false,
+      });
+      await tCh.send(summaryCard).catch(() => {});
+      if (txtFile && htmlFile) {
+        await tCh.send({ content: '📎 Transcript files:', files: [txtFile, htmlFile] }).catch(() => {});
+      }
+    }
+  }
+
   // Send to log channel
-  if (cfg?.logChannel) {
+  if (cfg?.logChannel && cfg?.logChannel !== transcriptChId) {
     const logCh = await client.channels.fetch(cfg.logChannel).catch(() => null);
     if (logCh) {
       await logCh.send(logCard(`${EMOJI.ticket} Ticket Closed — ${channel?.name || 'unknown'}`, `Closed by <@${closedBy}>${reason ? `\n**Reason:** ${reason}` : ''}\nSource: ${source}`)).catch(() => {});
