@@ -64,7 +64,7 @@ async function sendMonthlyReviews(client, targetGuildId = null) {
       const channel = await client.channels.fetch(cfg.reviewChannel).catch(() => null);
       if (!channel) continue;
 
-      const month = monthLabel();
+      const month = currentMonth();
 
       for (const partner of partners) {
         const card = reviewCard(partner, month, cfg.reviewText, cfg.reviewMode, cfg.reviewLink);
