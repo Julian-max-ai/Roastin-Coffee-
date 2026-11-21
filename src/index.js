@@ -35,7 +35,16 @@ mongoose.connect(process.env.MONGODB_URI)
     console.log('Connected to MongoDB Atlas');
     const { runMigrations } = require('./utils/migration');
     await runMigrations().catch(err => console.error('[migration]', err));
-    client.login(process.env.DISCORD_TOKEN);
+    client.on('guildCreate', async (guild) => {
+  try {
+    const owner = await guild.fetchOwner().catch(() => null);
+    if (owner) {
+      await owner.send('Welcome! Run `/setup start` to configure the bot.').catch(() => {});
+    }
+  } catch {}
+});
+
+client.login(process.env.DISCORD_TOKEN);
   })
   .catch(err => {
     console.error('MongoDB connection error:', err);
