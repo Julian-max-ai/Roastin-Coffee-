@@ -332,6 +332,58 @@ async function handleTicketOpen(interaction) {
   }
 }
 
+async function handleTicketCloseRequest(interaction) {
+  await interaction.deferReply({ ephemeral: true });
+  const { guild, channel, member } = interaction;
+  const cfg = await GuildConfig.findOne({ guildId: guild.id });
+
+  const ticket = await Ticket.findOne({ guildId: guild.id, channelId: channel.id, status: 'open' });
+  if (!ticket) return interaction.editReply(errorCard('Ticket not found or already closed.'));
+
+  // Only staff can request close
+  if (!isStaff(member, cfg)) {
+    return interaction.editReply(errorCard('Only staff can request a ticket close.'));
+  }
+
+  // Check if close request already exists
+  if (ticket.closeRequestedAt) {
+    return interaction.editReply(errorCard('A close request is already pending for this ticket.'));
+  }
+
+  const reason = interaction.options?.getString('reason') || null;
+  const closeRequestHours = cfg?.automation?.ticketCloseRequestHours ?? 24;
+  const closeAt = new Date(Date.now() + closeRequestHours * 60 * 60 * 1000);
+
+  // Update ticket
+  const updated = await Ticket.findByIdAndUpdate(ticket._id, {
+    closeRequestedAt: new Date(),
+    closeRequestedBy: interaction.user.id,
+    closeRequestReason: reason,
+  }, { new: true });
+
+  // Send close request card in channel
+  const cardPayload = card({
+    title: '🔒 Close Request',
+    description: `A staff member has requested to close this ticket.\n\n**Requested by:** <@${interaction.user.id}>${reason ? `\n**Reason:** ${reason}` : ''}\n\nWill be auto-closed <t:${Math.floor(closeAt.getTime() / 1000)}:R> if no response.`,
+    color: COLORS.warning,
+    buttons: [
+      new ButtonBuilder().setCustomId(`ticket_agree_close:${ticket._id}`).setLabel('Schließen').setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(`ticket_keep_open:${ticket._id}`).setLabel('Offen lassen').setStyle(ButtonStyle.Secondary),
+    ],
+    ephemeral: false,
+  });
+
+  const msg = await channel.send(cardPayload, { allowedMentions: { users: [ticket.userId] } }).catch(() => null);
+  if (msg) await Ticket.findByIdAndUpdate(ticket._id, { closeRequestMessageId: msg.id });
+
+  // Ping opener
+  await channel.send({ content: `<@${ticket.userId}>`, allowedMentions: { users: [ticket.userId] } }).catch(() => {});
+
+  await audit(guild.id, interaction.user.id, 'ticket_close_request', 'ticket', ticket._id.toString(), { reason });
+
+  await interaction.editReply(successCard('Close request sent in the ticket channel.'));
+}
+
 async function handleTicketClose(interaction) {
   await interaction.deferReply({ ephemeral: true });
   const { guild, channel, member } = interaction;
@@ -748,6 +800,7 @@ async function handleTicketRateFeedbackModal(interaction) {
 
 module.exports.handleTicketOpen             = handleTicketOpen;
 module.exports.handleTicketClose            = handleTicketClose;
+module.exports.handleTicketCloseRequest      = handleTicketCloseRequest;
 module.exports.handleTicketConfirmClose     = handleTicketConfirmClose;
 module.exports.handleTicketCancelClose      = handleTicketCancelClose;
 module.exports.handleTicketKeepOpen         = handleTicketKeepOpen;
