@@ -74,7 +74,7 @@ async function route(interaction, client) {
   const { handleConfigInteraction } = require('../commands/config');
   const cfgIds = ['cfg_category', 'cfg_ch_pick', 'cfg_reviewMode', 'cfg_text_pick', 'cfg_auto_pick'];
   const cfgChannelIds = id => id?.startsWith('cfg_channel:') || id === 'cfg_ticketCategory';
-  const cfgRoleIds    = ['cfg_prStaffRoles', 'cfg_partnerRepRoles'];
+  const cfgRoleIds    = ['cfg_adminRoles', 'cfg_prStaffRoles', 'cfg_partnerRepRoles'];
   const cfgButtonIds  = ['cfg_back', 'cfg_setReviewLink', 'cfg_setReviewQuestions'];
 
   if (
