@@ -1,6 +1,7 @@
 'use strict';
 const Partner = require('../../models/Partner');
 const ReviewSubmission = require('../../models/ReviewSubmission');
+const ReviewRequest = require('../../models/ReviewRequest');
 const GuildConfig = require('../../models/GuildConfig');
 const { card, logCard } = require('../../ui');
 const { EMOJI, COLORS } = require('../../theme');
@@ -21,7 +22,8 @@ async function reviewRemindersJob(client, setLastRun) {
       const overdueDays = cfg.automation.reviewOverdueDays ?? 14;
       const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-      const partners = await Partner.find({ guildId: cfg.guildId }).catch(() => []);
+      const requests = await ReviewRequest.find({ guildId: cfg.guildId, month }).catch(() => []);
+      const reqMap = new Map(requests.map(r => [r.partnerId.toString(), r]));
       const submissions = await ReviewSubmission.find({ guildId: cfg.guildId, month }).catch(() => []);
       const doneIds = new Set(submissions.map(s => s.partnerId.toString()));
 
@@ -29,16 +31,19 @@ async function reviewRemindersJob(client, setLastRun) {
 
       for (const partner of partners) {
         try {
+          const rr = reqMap.get(partner._id.toString());
+          if (!rr) continue;
           if (doneIds.has(partner._id.toString())) continue;
+          if (rr.status === 'done' || rr.status === 'skipped') continue;
 
-          const partnerAdded = new Date(partner.addedAt);
-          const daysSinceAdd = (now - partnerAdded) / (1000 * 60 * 60 * 24);
+          const reqAge = (now - new Date(rr.createdAt)) / (1000 * 60 * 60 * 24);
 
-          if (daysSinceAdd >= overdueDays) {
+          if (reqAge >= overdueDays && !rr.overdueAt) {
             // Overdue: notify staff
             if (cfg.logChannel) {
               const logCh = await client.channels.fetch(cfg.logChannel).catch(() => null);
               if (logCh) {
+                await ReviewRequest.findByIdAndUpdate(rr._id, { overdueAt: now });
                 await logCh.send(card({
                   title: `${EMOJI.overdue} Review Overdue`,
                   description: `**${partner.name}** has not submitted their review for ${month} (${overdueDays}+ days overdue).`,
@@ -48,8 +53,9 @@ async function reviewRemindersJob(client, setLastRun) {
                 })).catch(() => {});
               }
             }
-          } else if (channel && daysSinceAdd >= reminderDays) {
+          } else if (channel && reqAge >= reminderDays && !rr.remindedAt) {
             // Reminder
+            await ReviewRequest.findByIdAndUpdate(rr._id, { remindedAt: now });
             await channel.send({ ...card({
               title: `${EMOJI.reminder} Review Reminder`,
               description: `**${partner.name}**, please complete your monthly review for ${month}.` +
