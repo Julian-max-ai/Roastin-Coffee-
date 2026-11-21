@@ -3,6 +3,7 @@ const { SlashCommandBuilder, PermissionFlagsBits, ModalBuilder, TextInputBuilder
 const GuildConfig        = require('../models/GuildConfig');
 const Partner            = require('../models/Partner');
 const ReviewSubmission   = require('../models/ReviewSubmission');
+const ReviewRequest      = require('../models/ReviewRequest');
 const { reviewCard, reviewResultCard, reviewStatusCard, errorCard, successCard, logCard } = require('../ui');
 const { EMOJI } = require('../theme');
 const { audit } = require('../utils/audit');
