@@ -165,7 +165,7 @@ async function closeTicket(client, ticketId, { closedBy, reason, source }) {
   if (cfg?.automation?.ticketRatingEnabled !== false && updated.userId) {
     try {
       const opener = await client.users.fetch(updated.userId);
-      await opener.send(ticketRatingCard(channel?.name || 'ticket', ticketId)).catch(() => {});
+      await opener.send(ticketRatingCard(channel?.name || 'ticket', ticketId, cfg)).catch(() => {});
     } catch {}
   }
 

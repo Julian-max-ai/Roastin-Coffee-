@@ -269,8 +269,9 @@ function ticketWelcomeCard(type, user, claimedBy = null, priority = 'normal', ti
   return payload(parts, PRIORITY_COLOR[priority] || COLORS.primary);
 }
 
-function ticketRatingCard(ticketChannelName, ticketId) {
-  const desc = `Your ticket **${ticketChannelName}** has been closed.\nHow would you rate your experience?`;
+function ticketRatingCard(ticketChannelName, ticketId, cfg = null) {
+  const { getText } = require('../utils/texts');
+  const desc = getText(cfg, 'ticket_rating_prompt', { ticket: ticketChannelName }) + `\nYour ticket **${ticketChannelName}** has been closed.`;
   const row = new ActionRowBuilder().addComponents(
     ...[1, 2, 3, 4, 5].map(n =>
       new ButtonBuilder().setCustomId(`ticket_rate:${ticketId}:${n}`).setLabel(`${n} ${'⭐'.repeat(n)}`).setStyle(ButtonStyle.Secondary)
