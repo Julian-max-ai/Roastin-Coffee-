@@ -27,7 +27,9 @@ module.exports = {
       .addStringOption(o => o.setName('name').setDescription('Partner name').setRequired(true).setAutocomplete(true))
       .addStringOption(o => o.setName('roblox').setDescription('New Roblox group link'))
       .addStringOption(o => o.setName('discord').setDescription('New Discord invite link'))
-      .addUserOption(o => o.setName('representative').setDescription('New representative')))
+      .addChannelOption(o => o.setName('channel').setDescription('New partner channel'))
+      .addUserOption(o => o.setName('add-rep').setDescription('Add a representative'))
+      .addUserOption(o => o.setName('remove-rep').setDescription('Remove a representative')))
     .addSubcommand(s => s.setName('list').setDescription('List all current partners.'))
     .addSubcommand(s => s.setName('info').setDescription('Show partner details.')
       .addStringOption(o => o.setName('name').setDescription('Partner name').setRequired(true).setAutocomplete(true))),
@@ -144,23 +146,77 @@ module.exports = {
       const partner = await Partner.findOne({ guildId, name });
       if (!partner) return interaction.editReply(errorCard(`No partner named **${name}** found.`));
 
+      const reps = partner.representativeIds?.length ? [...partner.representativeIds] : [partner.representativeId].filter(Boolean);
       const changes = [];
+
       if (interaction.options.getString('roblox')) {
         if (!isRobloxLink(interaction.options.getString('roblox'))) return interaction.editReply(errorCard('Invalid Roblox link.'));
-        changes.push(`Roblox updated`);
+        changes.push('Roblox updated');
         partner.robloxLink = interaction.options.getString('roblox');
       }
       if (interaction.options.getString('discord')) {
         if (!isDiscordInvite(interaction.options.getString('discord'))) return interaction.editReply(errorCard('Invalid Discord invite.'));
-        changes.push(`Discord updated`);
+        changes.push('Discord updated');
         partner.discordInvite = interaction.options.getString('discord');
       }
-      if (interaction.options.getUser('representative')) {
-        changes.push(`Representative → <@${interaction.options.getUser('representative').id}>`);
-        partner.representativeId = interaction.options.getUser('representative').id;
+
+      // channel change
+      const newChannel = interaction.options.getChannel('channel');
+      if (newChannel) {
+        const me = await interaction.guild.members.fetch(interaction.client.user.id).catch(() => null);
+        if (!me?.permissions.has(PermissionFlagsBits.ManageChannels)) return interaction.editReply(errorCard('Bot needs Manage Channels permission.'));
+        try {
+          if (partner.channelId) {
+            const oldCh = await interaction.client.channels.fetch(partner.channelId).catch(() => null);
+            if (oldCh) for (const r of reps) await oldCh.permissionOverwrites.delete(r).catch(() => {});
+          }
+          await newChannel.permissionOverwrites.edit(interaction.guild.id, { ViewChannel: false });
+          for (const r of reps) await newChannel.permissionOverwrites.edit(r, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true, AttachFiles: true });
+          const cfg = await GuildConfig.findOne({ guildId });
+          for (const roleId of [...(cfg?.prStaffRoles || []), ...(cfg?.adminRoles || [])]) await newChannel.permissionOverwrites.edit(roleId, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true, AttachFiles: true, ManageMessages: true });
+          await newChannel.permissionOverwrites.edit(interaction.client.user.id, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true, EmbedLinks: true, ManageMessages: true });
+        } catch (err) {
+          return interaction.editReply(errorCard(`Failed to set channel permissions: ${err.message}`));
+        }
+        partner.channelId = newChannel.id;
+        partner.channelMissing = false;
+        changes.push(`Channel → <#${newChannel.id}>`);
       }
+
+      // add rep
+      const addRep = interaction.options.getUser('add-rep');
+      if (addRep && !reps.includes(addRep.id)) {
+        reps.push(addRep.id);
+        if (partner.channelId) {
+          const ch = await interaction.client.channels.fetch(partner.channelId).catch(() => null);
+          if (ch) await ch.permissionOverwrites.edit(addRep.id, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true, AttachFiles: true }).catch(() => {});
+        }
+        const cfg = await GuildConfig.findOne({ guildId });
+        if (cfg?.automation?.autoAssignRepRoles && cfg?.partnerRepRoles?.length) {
+          try { const m = await interaction.guild.members.fetch(addRep.id); await m.roles.add(cfg.partnerRepRoles); } catch {}
+        }
+        changes.push(`Added rep <@${addRep.id}>`);
+      }
+
+      // remove rep
+      const removeRep = interaction.options.getUser('remove-rep');
+      if (removeRep) {
+        const idx = reps.indexOf(removeRep.id);
+        if (idx === -1) return interaction.editReply(errorCard('That user is not a representative.'));
+        if (reps.length <= 1) return interaction.editReply(errorCard('A partner must have at least one representative.'));
+        reps.splice(idx, 1);
+        if (partner.channelId) {
+          const ch = await interaction.client.channels.fetch(partner.channelId).catch(() => null);
+          if (ch) await ch.permissionOverwrites.delete(removeRep.id).catch(() => {});
+        }
+        changes.push(`Removed rep <@${removeRep.id}>`);
+      }
+
+      partner.representativeIds = reps;
+      partner.representativeId = reps[0];
       await partner.save();
-      await interaction.editReply(successCard(`**${name}** updated:\n${changes.map(c => `> ${c}`).join('\n')}`));
+
+      await interaction.editReply(successCard(`**${name}** updated:\n${changes.length ? changes.map(c => `> ${c}`).join('\n') : '> No changes.'}`));
       await updatePartnerList(interaction.client, guildId);
     }
 
@@ -170,7 +226,8 @@ module.exports = {
       const { items, totalPages, page, row } = paginate(all, 0, PAGE_SIZE, 'partners');
       let desc = `**${all.length} active partner(s)**\n\n`;
       for (const pt of items) {
-        desc += `**${pt.name}** — <@${pt.representativeId}>\n> Since ${ts(pt.addedAt, 'D')}\n\n`;
+        const reps = pt.representativeIds?.length ? pt.representativeIds : [pt.representativeId];
+        desc += `**${pt.name}** — ${reps.map(r => `<@${r}>`).join(', ')}${pt.channelId ? '' : ' ⚠️ no channel'}\n> Since ${ts(pt.addedAt, 'D')}\n\n`;
       }
       if (totalPages > 1) desc += `-# Page ${page + 1}/${totalPages}`;
       const res = infoCard(`${EMOJI.partner} Partner List`, desc, true);
