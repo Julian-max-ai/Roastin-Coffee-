@@ -7,6 +7,7 @@ const { infractionCard, infractionListCard, infractionEscalationCard, infraction
 const { cap, ts, strikeBar, truncate } = require('../utils/format');
 const { paginate } = require('../utils/pagination');
 const { isStaff } = require('../utils/permissions');
+const { getText } = require('../utils/texts');
 const { EMOJI, STRIKE_LIMIT, PAGE_SIZE, COLORS } = require('../theme');
 const { audit } = require('../utils/audit');
 
@@ -299,7 +300,7 @@ module.exports = {
       }
       try {
         const rep = await interaction.client.users.fetch(partner.representativeId);
-        await rep.send(successCard(`Your appeal for the infraction on **${partner.name}** has been accepted. The infraction has been removed.`, false)).catch(() => {});
+        await rep.send(successCard(getText(cfg, 'appeal_accepted', { partner: partner.name, rep: `<@${partner.representativeId}>` }), false)).catch(() => {});
       } catch {}
       await interaction.update(successCard(`Appeal accepted — infraction removed for **${partner.name}**.`));
       await audit(guildId, interaction.user.id, 'appeal_accept', 'infraction', infractionId, { partnerId: partner._id.toString() });
@@ -323,7 +324,7 @@ module.exports = {
     await Infraction.findByIdAndUpdate(infractionId, { appealStatus: 'rejected', appealRejectReason: reason });
     try {
       const rep = await interaction.client.users.fetch(partner.representativeId);
-      await rep.send(errorCard(`Your appeal for the infraction on **${partner.name}** has been rejected.\n\n**Reason:** ${reason}`, false)).catch(() => {});
+      await rep.send(errorCard(getText(cfg, 'appeal_rejected', { partner: partner.name, rep: `<@${partner.representativeId}>`, reason }), false)).catch(() => {});
     } catch {}
     await interaction.update(successCard(`Appeal rejected for **${partner.name}**.`));
     await audit(guildId, interaction.user.id, 'appeal_reject', 'infraction', infractionId, { partnerId: partner._id.toString(), reason });

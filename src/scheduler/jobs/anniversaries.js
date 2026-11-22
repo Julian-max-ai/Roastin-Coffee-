@@ -31,7 +31,7 @@ async function anniversariesJob(client, setLastRun) {
 
           await announceChannel.send({ ...card({
             title: `${EMOJI.anniversary} Partner Anniversary`,
-            description: `Happy anniversary to **${partner.name}**! 🎉 Thank you for partnering with Roastin' Coffee.\nPing: <@${partner.representativeId}>`,
+            description: getText(cfg, 'anniversary', { partner: partner.name, rep: `<@${partner.representativeId}>` }) + `\nPing: <@${partner.representativeId}>`,
             color: COLORS.success,
             buttons: [],
             ephemeral: false,

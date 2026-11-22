@@ -1,6 +1,7 @@
 'use strict';
 const EventRequest = require('../../models/EventRequest');
 const GuildConfig = require('../../models/GuildConfig');
+const { getText } = require('../../utils/texts');
 const { card } = require('../../ui');
 const { EMOJI, COLORS } = require('../../theme');
 
@@ -34,7 +35,7 @@ async function weeklyEventDigestJob(client, setLastRun) {
 
       await announceChannel.send(card({
         title: `${EMOJI.event} Weekly Event Digest`,
-        description: `Upcoming events this week:\n\n${desc}`,
+        description: getText(cfg, 'weekly_digest_header', {}) + `\n\n${desc}`,
         color: COLORS.primary,
         buttons: [],
         ephemeral: false,
