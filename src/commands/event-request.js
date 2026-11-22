@@ -128,8 +128,10 @@ async function handleEventDenyModal(interaction) {
 
   try {
     const user = await interaction.client.users.fetch(updatedReq.submitterId);
+    const { getText } = require('../utils/texts');
+    const cfg = await require('../models/GuildConfig').findOne({ guildId });
     await user.send(errorCard(
-      `Your event request **${updatedReq.title}** was denied by <@${interaction.user.id}>.` +
+      getText(cfg, 'event_denied', { user: `<@${updatedReq.submitterId}>`, title: updatedReq.title, reason: reason || '' }) +
       (reason ? `\n\n**Reason:** ${reason}` : ''), false
     ));
   } catch {}
