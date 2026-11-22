@@ -196,7 +196,8 @@ async function updatePartnerList(client, guildId) {
   if (!channel) return;
 
   const partners = await Partner.find({ guildId });
-  const header   = cfg.partnerListText || `## ${EMOJI.partner} Our Partners\n\n`;
+  const { getText } = require('../utils/texts');
+  const header   = getText(cfg, 'partner_list_header', {}) || cfg.partnerListText || `## ${EMOJI.partner} Our Partners\n\n`;
   const payloads = partners.length
     ? partnerListCards(partners, header)
     : [infoCard(`${EMOJI.partner} Our Partners`, '*No active partners yet.*', false)];

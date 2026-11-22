@@ -2,6 +2,7 @@
 const Ticket = require('../../models/Ticket');
 const GuildConfig = require('../../models/GuildConfig');
 const { closeTicket } = require('../../services/ticketService');
+const { getText } = require('../../utils/texts');
 
 async function ticketAutoCloseJob(client, setLastRun) {
   const configs = await GuildConfig.find({ 'automation.ticketAutoCloseEnabled': true }).catch(() => []);
@@ -23,7 +24,7 @@ async function ticketAutoCloseJob(client, setLastRun) {
         try {
           await closeTicket(client, ticket._id.toString(), {
             closedBy: null,
-            reason: 'Auto-closed due to inactivity',
+            reason: getText(cfg, 'ticket_auto_close_notice', { user: `<@${ticket.userId}>`, ticket: ticket._id }),
             source: 'inactivity',
           });
         } catch (err) {

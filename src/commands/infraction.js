@@ -113,11 +113,11 @@ module.exports = {
         try {
           const rep = await interaction.client.users.fetch(repId);
           // C4: Appeal button only in DM variant
-          await rep.send(infractionCard(infraction, partner, interaction.user.id, activeStrikes, STRIKE_LIMIT, false, true));
+          await rep.send(infractionCard(infraction, partner, interaction.user.id, activeStrikes, STRIKE_LIMIT, false, true, cfg));
         } catch { dmFailed = true; }
       }
 
-      const card = infractionCard(infraction, partner, interaction.user.id, activeStrikes, STRIKE_LIMIT, dmFailed, false);
+      const card = infractionCard(infraction, partner, interaction.user.id, activeStrikes, STRIKE_LIMIT, dmFailed, false, cfg);
       await interaction.editReply(card);
 
       // Send infraction notice to partner channel

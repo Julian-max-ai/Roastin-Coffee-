@@ -161,7 +161,7 @@ function partnerListCards(partners, headerText) {
 
 // ─── infraction cards ────────────────────────────────────────────────────────
 
-function infractionCard(infraction, partner, issuedBy, activeStrikes, strikeLimit, dmFailed = false, forRepresentative = false) {
+function infractionCard(infraction, partner, issuedBy, activeStrikes, strikeLimit, dmFailed = false, forRepresentative = false, cfg = null) {
   const { INFRACTION_COLORS } = require('../theme');
   const color = INFRACTION_COLORS[infraction.type];
   const typeLabel = cap(infraction.type);
@@ -177,7 +177,8 @@ function infractionCard(infraction, partner, issuedBy, activeStrikes, strikeLimi
   if (infraction.type === 'strike') {
     desc += `\n\n**Strikes:** ${strikeBar(activeStrikes, strikeLimit)}`;
     if (activeStrikes >= strikeLimit) {
-      desc += `\n\n> ${EMOJI.warning} **Strike limit reached — review for termination.**`;
+      const { getText } = require('../utils/texts');
+      desc += `\n\n> ${EMOJI.warning} **${getText(cfg, 'infraction_strike', { partner: partner.name, rep: '', reason: infraction.reason })}**`;
     }
   }
   if (infraction.expiresAt) {

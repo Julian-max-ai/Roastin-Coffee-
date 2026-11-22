@@ -99,7 +99,7 @@ async function closeTicket(client, ticketId, { closedBy, reason, source }) {
 
     // Closing card
     try {
-      await channel.send(logCard(`${EMOJI.ticket} Ticket Closing`, `Transcript is being generated…`)).catch(() => {});
+      await channel.send(logCard(`${EMOJI.ticket} Ticket Closing`, getText(cfg, 'ticket_closing', { user: `<@${updated.userId}>`, ticket: updated._id }))).catch(() => {});
     } catch {}
   }
 

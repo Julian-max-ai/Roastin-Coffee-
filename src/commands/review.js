@@ -89,7 +89,9 @@ async function sendMonthlyReviews(client, targetGuildId = null) {
         await channel.send({ content: reps.map(r => `<@${r}>`).join(' '), allowedMentions: { users: reps } }).catch(() => {});
 
         // Send review card with partner links
-        const card = reviewCard(partner, month, cfg.reviewText, cfg.reviewMode, cfg.reviewLink);
+        const { getText } = require('../utils/texts');
+        const reviewText = getText(cfg, 'review_intro', { partner: partner.name, rep: `<@${partner.representativeId}>`, month });
+        const card = reviewCard(partner, month, reviewText, cfg.reviewMode, cfg.reviewLink);
         const msg = await channel.send(card).catch(() => null);
 
         total++;

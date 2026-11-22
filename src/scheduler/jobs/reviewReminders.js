@@ -49,7 +49,7 @@ async function reviewRemindersJob(client, setLastRun) {
                 await ReviewRequest.findByIdAndUpdate(rr._id, { overdueAt: now });
                 await logCh.send(card({
                   title: `${EMOJI.overdue} Review Overdue`,
-                  description: `**${partner.name}** has not submitted their review for ${month} (${overdueDays}+ days overdue).`,
+                  description: getText(cfg, 'review_overdue', { partner: partner.name, rep: `<@${partner.representativeId}>`, month }) + ` (${overdueDays}+ days overdue).`,
                   color: COLORS.error,
                   buttons: [],
                   ephemeral: false,
