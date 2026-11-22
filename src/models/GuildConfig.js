@@ -27,6 +27,7 @@ const GuildConfigSchema = new Schema({
   reviewLink:           { type: String, default: null },
   reviewQuestions:      { type: [String], default: ['How active was your group this month?', 'Any events hosted?', 'Any issues to report?'] },
   texts:                { type: Schema.Types.Mixed, default: {} },
+  designs:              { type: Schema.Types.Mixed, default: {} },
   branding:             { type: { name: String, sub: String, logoUrl: String, color: String }, default: {} },
   macros:               { type: [{ name: String, text: String }], default: [] },
   awayList:             { type: [{ userId: String, from: String, to: String, reason: String }], default: [] },

@@ -94,3 +94,4 @@ function cleanComponent(c) {
 }
 
 module.exports.handleDweebModal = handleDweebModal;
+module.exports.cleanPayload = cleanPayload;
