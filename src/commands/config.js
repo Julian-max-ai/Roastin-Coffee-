@@ -16,11 +16,11 @@ function mainMenu() {
       .setPlaceholder('Select a category to configure...')
       .addOptions([
         { label: '📢 Channels', value: 'channels', description: 'Announcement, review, log, partner list, ticket category' },
-        { label: '👥 Roles', value: 'roles', description: 'PR staff and partner representative roles' },
+        { label: '👥 Roles', value: 'roles', description: 'Public Relations staff and partner representative roles' },
         { label: '📋 Review System', value: 'review', description: 'Review mode, link and questions' },
         { label: '✏️ Custom Texts', value: 'texts', description: 'Partner list, ticket panel and review texts' },
         { label: '⚙️ Automation', value: 'automation', description: 'Ticket, infraction, review and event automation' },
-        { label: '🔐 Rights', value: 'rights', description: 'Admin, PR staff and partner rep roles' },
+        { label: '🔐 Rights', value: 'rights', description: 'Admin, Public Relations staff and partner rep roles' },
       ])
   );
 }
@@ -82,7 +82,7 @@ async function handleConfigInteraction(interaction) {
     if (cat === 'roles') {
       return interaction.editReply(configPanel(await GuildConfig.findOne({ guildId }), [
         new ActionRowBuilder().addComponents(
-          new RoleSelectMenuBuilder().setCustomId('cfg_prStaffRoles').setPlaceholder('👔 PR Staff Roles').setMinValues(1).setMaxValues(5)
+          new RoleSelectMenuBuilder().setCustomId('cfg_prStaffRoles').setPlaceholder('👔 Public Relations Staff Roles').setMinValues(1).setMaxValues(5)
         ),
         new ActionRowBuilder().addComponents(
           new RoleSelectMenuBuilder().setCustomId('cfg_partnerRepRoles').setPlaceholder('🤝 Partner Rep Roles').setMinValues(1).setMaxValues(5)
@@ -131,7 +131,7 @@ async function handleConfigInteraction(interaction) {
           new RoleSelectMenuBuilder().setCustomId('cfg_adminRoles').setPlaceholder('🔐 Admin Roles').setMinValues(0).setMaxValues(5)
         ),
         new ActionRowBuilder().addComponents(
-          new RoleSelectMenuBuilder().setCustomId('cfg_prStaffRoles').setPlaceholder('👔 PR Staff Roles').setMinValues(0).setMaxValues(5)
+          new RoleSelectMenuBuilder().setCustomId('cfg_prStaffRoles').setPlaceholder('👔 Public Relations Staff Roles').setMinValues(0).setMaxValues(5)
         ),
         new ActionRowBuilder().addComponents(
           new RoleSelectMenuBuilder().setCustomId('cfg_partnerRepRoles').setPlaceholder('🤝 Partner Rep Roles').setMinValues(0).setMaxValues(5)
@@ -336,7 +336,7 @@ async function handleConfigInteraction(interaction) {
     modal.addComponents(new ActionRowBuilder().addComponents(
       new TextInputBuilder()
         .setCustomId('questions_value')
-        .setLabel('One question per line (max 5, max 45 chars each)')
+        .setLabel('Review questions (one per line)')
         .setStyle(TextInputStyle.Paragraph)
         .setValue(current)
         .setRequired(true)
